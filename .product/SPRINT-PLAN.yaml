@@ -1,0 +1,256 @@
+---
+artifact: SPRINT-PLAN
+project_slug: llm-corpus
+stage: 4-plan
+tier: deep
+template_version: 3.0.0
+generated: 2026-04-26T00:12:00Z
+generated_by: ProductDevelopment Skill v3.0
+supersedes: null
+product_type: software
+
+counts:
+  sprint_count: 9
+  total_must_have_requirements_in_scope: 32
+  total_gherkin_scenarios_in_scope: 128
+completeness:
+  every_sprint_has_goal: true
+  every_sprint_has_machine_checkable_entry_criteria: true
+  every_sprint_has_machine_checkable_exit_criteria: true
+links:
+  roadmap: ./ROADMAP.yaml
+  requirements: ./REQUIREMENTS.yaml
+  acceptance_criteria: ./ACCEPTANCE-CRITERIA.feature
+  adrs_dir: ./ADRs/
+sources:
+  decisions: [D-003, D-004, D-005, D-009, D-010, D-012, D-013, D-015]
+  concerns: [C-027, C-028, C-029, C-030, C-031]
+---
+
+# Sprint Plan
+# 9 sprints (SP-000 pilot + SP-001..SP-008) for v1 v1 must-have set.
+# SP-000 is the pre-build NFR-008 pilot sprint per C-030 / ADR-005.
+# SP-001..SP-008 are the main build slice; ≤5 must-have requirements per sprint.
+
+sprints:
+
+  - id: SP-000
+    goal: "Set NFR-008 absolute floor or formally downgrade NFR-008 to nice_to_have BEFORE Sprint 1 begins."
+    horizon_ref: now
+    roadmap_items: [RM-001]
+    scope:
+      requirements: []                    # pilot work; informs NFR-008 commitment
+      pilot_deliverables:
+        - "FR-009 retrieval-prompt template authored, version-controlled, tested standalone"
+        - "100-query benchmark harness on Llama 3.1 8B Instruct (via Ollama+MCP)"
+        - "100-query benchmark harness on Qwen 2.5 7B Instruct (via Ollama+MCP)"
+        - "≥2 prompt-template iteration cycles if first run achieves <N=25"
+      gherkin_features: [retrieval-prompt-pilot.feature]
+      excluded: [FR-001, FR-010, FR-012]  # foundation work waits for SP-001
+    entry_criteria:
+      - "all_referenced_adrs_status_eq_accepted: [ADR-005]"
+      - "stage_3_handoff_exists"
+      - "ollama_local_installation_verified"
+      - "models_pulled: [llama3.1:8b-instruct, qwen2.5:7b-instruct]"
+    exit_criteria:
+      - "both_model_families_benchmarked_100_queries_each"
+      - "at_least_2_prompt_template_iterations_recorded_in_journal"
+      - "final_nfr_008_n_value_committed_OR_downgrade_decision_recorded_in_decisions_jsonl"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "ollama_integration_blocks_pilot_for_more_than_2_days"           # if Ollama+MCP cannot be made to work, ADR-005 is invalidated
+      - "no_prompt_variant_reaches_N_15_on_either_model_after_3_cycles"  # below pilot lower-bound; recycle Stage 4 to revisit AG-004 / NFR-008 framing
+    estimated_duration_days: 5
+    notes: "Pilot sprint per C-030 (Priya Council objection) + ADR-005. Output gates Sprint 1 entry."
+
+  - id: SP-001
+    goal: "Ship local-only enforcement (NFR-001 + NFR-002) and the MCP server foundation (FR-001) so all subsequent code paths have the security primitive in place."
+    horizon_ref: now
+    roadmap_items: [RM-002]
+    scope:
+      requirements: [NFR-001, NFR-002, FR-001]
+      gherkin_features: [local-only-enforcement.feature, mcp-foundation.feature]
+      excluded: [FR-005, FR-009]          # resources + prompts are SP-002
+    entry_criteria:
+      - "sprint_000_exit_criteria_all_passed"
+      - "all_referenced_adrs_status_eq_accepted: [ADR-001]"
+      - "all_scope_requirements_have_acceptance_criteria_scenarios_min_1"
+      - "no_blocking_questions_open_touching_scope: [Q-003]"  # Q-003 ADR-006 not strictly blocking SP-001 since FR-020 is should
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "tcpdump_test_on_non_loopback_during_pipeline_shows_zero_packets"
+      - "worker_thread_egress_attempt_blocked_by_hook"
+      - "child_process_spawn_egress_attempt_blocked_by_os_firewall_and_execution_journal_entry_exists_with_blocked_result"
+      - "build_native_addon_allowlist_check_rejects_addons_outside_better_sqlite3_sqlite_vec_per_adr_001"
+      - "mcp_server_corpus_find_tool_discoverable_via_tools_list_handshake"
+      - "no_new_high_severity_concerns_opened_during_sprint_without_mitigation"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "egress_hook_cannot_cover_all_six_primitives_in_one_pass"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 7
+    notes: "Critical-path security primitive. ADR-001 must be accepted before SP-001 entry. Closes C-029 (David Council) at the build-level."
+
+  - id: SP-002
+    goal: "Ship MCP server resources (manifest, taxonomy, recent-ingests, per-doc) and retrieval-prompt template so agent sessions auto-load corpus context (FR-005..FR-009)."
+    horizon_ref: now
+    roadmap_items: [RM-003]
+    scope:
+      requirements: [FR-005, FR-006, FR-007, FR-008, FR-009]
+      gherkin_features: [mcp-resources.feature, retrieval-prompts.feature]
+      excluded: [FR-014]                  # taxonomy validation is in SP-004 (classifier)
+    entry_criteria:
+      - "sprint_001_exit_criteria_all_passed"
+      - "all_referenced_adrs_status_eq_accepted: [ADR-008]"
+      - "all_scope_requirements_have_acceptance_criteria_scenarios_min_1"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "manifest_resource_median_size_under_500_bytes_across_10_sample_documents_per_adr_008"
+      - "mcp_session_start_event_in_execution_journal_shows_resource_annotations_auto_loaded_for_all_4_resource_types"
+      - "fr_009_prompt_template_version_in_git_matches_template_id_recorded_in_sp_000_execution_journal_pilot_output"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 5
+    notes: "Depends on SP-001 (FR-001). FR-009 must be the prompt template version finalized in SP-000."
+
+  - id: SP-003
+    goal: "Ship inbox watcher + ingest normalization + content-hash idempotency (FR-010, FR-011, FR-017) and turn on structured telemetry (NFR-016)."
+    horizon_ref: now
+    roadmap_items: [RM-004]
+    scope:
+      requirements: [FR-010, FR-011, FR-017, NFR-016]
+      gherkin_features: [inbox-watcher.feature, ingest-normalize.feature, content-hash.feature, telemetry.feature]
+      excluded: [FR-016a, FR-016b]        # idempotency + resumability is SP-006
+    entry_criteria:
+      - "sprint_001_exit_criteria_all_passed"   # SP-003 can run parallel to SP-002 in principle; depends on SP-001 only
+      - "all_referenced_adrs_status_eq_accepted: [ADR-002, ADR-007]"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "c_018_mime_mismatch_adversary_scenario_passes"            # binary file with allowed extension rejected
+      - "c_020_full_file_hash_adversary_scenario_passes"           # 60MB identical-prefix-different-tail files ingest separately
+      - "telemetry_event_classes_emitted_count_at_least_6"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "file_type_npm_pkg_proves_unable_to_detect_one_of_4_allowlist_types"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 5
+    notes: "ADR-002 + ADR-007 must be accepted before entry. C-031 spike re-run requirement satisfied by exit criteria."
+
+  - id: SP-004
+    goal: "Ship local-LLM classifier with grammar-constrained metadata (FR-012, FR-013, FR-014, NFR-004); replace prior reference-only SP-001 evidence with real 100-doc benchmark."
+    horizon_ref: now
+    roadmap_items: [RM-005]
+    scope:
+      requirements: [FR-012, FR-013, FR-014, NFR-004]
+      gherkin_features: [classifier.feature, schema-validation.feature, taxonomy-validation.feature, classifier-100-doc-bench.feature]
+      excluded: [FR-019]                  # dynamic-taxonomy promotion is in next-horizon (RM-010)
+    entry_criteria:
+      - "sprint_003_exit_criteria_all_passed"
+      - "sprint_000_exit_criteria_all_passed"  # FR-009 prompt + NFR-008 pilot data informs FR-012 prompt template
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "real_100_doc_benchmark_executed_with_results_in_journal_per_c_031"
+      - "schema_validity_rate_at_least_99_percent_on_100_doc_bench_per_nfr_004"
+      - "taxonomy_validation_adversary_scenario_in_execution_journal_shows_invalid_domain_rejected_and_invalid_tag_rejected"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "schema_validity_rate_below_95_percent_after_2_iteration_cycles"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 7
+    notes: "C-031 BLOCK-02 closure: real 100-doc benchmark executed here (replaces fabricated Stage 3 SP-001 claim)."
+
+  - id: SP-005
+    goal: "Ship embed + index + hybrid retrieval (FR-015, FR-002, FR-003, FR-004, NFR-003) so corpus.find returns ranked SearchHits within latency budget."
+    horizon_ref: now
+    roadmap_items: [RM-006]
+    scope:
+      requirements: [FR-015, FR-002, FR-003, FR-004, NFR-003]
+      gherkin_features: [embed-index.feature, corpus-find.feature, hybrid-retrieval.feature, latency.feature]
+      excluded: [FR-014]
+    entry_criteria:
+      - "sprint_004_exit_criteria_all_passed"
+      - "all_referenced_adrs_status_eq_accepted: [ADR-004]"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "100_query_latency_harness_p95_under_250ms_at_5k_doc_corpus_per_nfr_003"
+      - "100_query_latency_harness_p50_under_100ms_at_5k_doc_corpus"
+      - "hybrid_fusion_ablation_test_in_execution_journal_shows_score_degradation_when_any_single_signal_bm25_dense_graph_confidence_removed"
+      - "malformed_input_adversary_scenario_in_execution_journal_shows_error_response_with_code_message_request_id_fields_present_and_two_runs_produce_identical_error_code"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "p95_latency_above_500ms_at_5k_after_2_optimization_cycles"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 7
+    notes: "ADR-004 latency budget is the load-bearing exit criterion. Rollback if 2× over budget after optimization."
+
+  - id: SP-006
+    goal: "Ship idempotency + resumability + failure lane (FR-016a, FR-016b, FR-018, NFR-005, NFR-015) so pipeline is durable across kill -9 and concurrent stage invocations."
+    horizon_ref: now
+    roadmap_items: [RM-007]
+    scope:
+      requirements: [FR-016a, FR-016b, FR-018, NFR-005, NFR-015]
+      gherkin_features: [idempotency.feature, resumability.feature, failure-lane.feature, kill-9-survival.feature, wal-recovery.feature]
+      excluded: [NFR-006]                 # NFR-006 (CLI triability) consolidated into SP-007
+    entry_criteria:
+      - "sprint_005_exit_criteria_all_passed"
+      - "all_referenced_adrs_status_eq_accepted: [ADR-003]"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "c_019_concurrent_stage_adversary_scenario_passes"          # exactly one row exists post-completion
+      - "kill_9_at_each_of_6_pipeline_stages_resumes_correctly_no_duplicates_no_corruption"
+      - "sqlite_wal_recovery_under_2s_on_100mb_wal_per_nfr_015"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "kill_9_recovery_produces_corrupt_state_after_2_attempts"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 5
+    notes: "Critical durability primitive but parallelizable with SP-005 in principle (different code paths). Gated on SP-005 here for sequencing simplicity."
+
+  - id: SP-007
+    goal: "Ship install + 90-second first-run UX (TR-001, TR-002, NFR-014, NFR-010, NFR-006) so npx invocation provisions a working corpus within 90 seconds."
+    horizon_ref: now
+    roadmap_items: [RM-008]
+    scope:
+      requirements: [TR-001, TR-002, NFR-014, NFR-010, NFR-006]
+      gherkin_features: [install.feature, uninstall.feature, first-run-90s.feature, single-sqlite-file.feature, failure-lane-cli.feature]
+      excluded: []
+    entry_criteria:
+      - "sprint_006_exit_criteria_all_passed"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "npx_init_to_first_corpus_find_under_90s_on_cold_install"
+      - "uninstall_reverses_all_install_side_effects_verifiable_via_filesystem_diff"
+      - "index_lives_in_exactly_one_sqlite_file_per_nfr_010"
+      - "os_firewall_rule_provisioned_during_install_and_blocks_outbound_non_loopback_for_corpus_uid_per_adr_001"
+      - "uninstall_reverses_os_firewall_rule_verified_via_post_uninstall_firewall_query"
+      - "every_nfr_006_failure_mode_in_acceptance_criteria_feature_has_a_corresponding_cli_triage_scenario_in_execution_journal"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "first_run_90s_unachievable_after_2_optimization_cycles"
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 5
+    notes: "First-run UX is the public-facing differentiator vs Letta/Mem0; cannot ship if 90s budget unmet."
+
+  - id: SP-008
+    goal: "Close user-level acceptance (UR-001, UR-002, UR-003) and validate Maya Week-1 engagement-proxy gate per C-028."
+    horizon_ref: now
+    roadmap_items: [RM-009]
+    scope:
+      requirements: [UR-001, UR-002, UR-003]
+      gherkin_features: [user-acceptance-ur-001.feature, user-acceptance-ur-002.feature, user-acceptance-ur-003.feature]
+      excluded: []
+    entry_criteria:
+      - "sprint_007_exit_criteria_all_passed"
+      - "sprint_status_in_sprint_ledger_for_SP_000_through_SP_007_all_eq_completed_or_qa_gated"
+    exit_criteria:
+      - "every_scope_requirement_has_at_least_one_passing_gherkin_scenario_in_execution_journal"
+      - "maya_persona_week_1_engagement_proxy_at_least_5_corpus_find_queries_in_7d_with_at_least_1_acceptance_event_per_c_028"
+      - "session_start_idempotency_test_in_execution_journal_shows_sqlite_corpus_table_row_count_unchanged_after_second_session_start_with_identical_inbox"
+      - "corpus_find_empty_corpus_adversary_scenario_in_execution_journal_shows_mcp_response_hits_array_empty_and_no_citation_fields"
+      - "pm_review_approved_sprint_outcome"
+    rollback_criteria:
+      - "week_1_engagement_proxy_below_3_queries_in_7d_after_dogfood_period"   # kill signal before Stage 6 gate per C-028
+      - "any_inviolable_decision_invalidated_by_new_concern"
+    estimated_duration_days: 7
+    notes: "Final must-have sprint. Failure of Maya engagement proxy is a kill signal for v1, not a sprint-retry — rollback to Stage 4 recycle."

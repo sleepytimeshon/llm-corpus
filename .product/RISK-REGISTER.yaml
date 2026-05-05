@@ -1,0 +1,717 @@
+---
+artifact: RISK-REGISTER
+project_slug: llm-corpus
+stage: 5-build-test
+tier: deep
+template_version: 3.0.0
+generated: 2026-04-27T05:51:00Z
+generated_by: ProductDevelopment Skill v1.0 (auto-derived; do not hand-edit)
+
+derivation:
+  source_ledger: ./ledgers/concerns.jsonl
+  source_ledger_sha256: df4d921fd13e42d2b1ddf933fbe7056c1dc184ac62d7b76c8676a47bcb7beeca
+  derivation_rule: |
+    entry.kind == "risk"
+     OR (entry.kind == "assumption" AND entry.severity in ["medium","high"])
+     OR (entry.status == "open" AND entry.severity == "high")
+  derived_at: 2026-04-27T05:51:00Z
+  last_reviewed: 2026-04-27T05:51:00Z
+
+counts:
+  total_eligible: 41
+  by_severity:
+    high: 22
+    medium: 19
+    low: 0
+  by_kind:
+    risk: 38
+    assumption: 3
+  by_status:
+    open: 18
+    valid: 0
+    invalid: 0
+    closed: 0
+    mitigated: 23
+  open_high_without_mitigation: 0
+
+links:
+  decisions: ./ledgers/decisions.jsonl
+  questions: ./ledgers/questions.jsonl
+  test_plan: ./TEST-PLAN.md
+  prod_readiness: ./PROD-READINESS-REVIEW.md
+
+product_type: software
+---
+
+# Risk Register — auto-derived view (do not hand-edit)
+
+> Regenerated from `ledgers/concerns.jsonl` on every Stage 5 entry / PM-Review.
+> To add a risk, append a new entry to concerns.jsonl via Tools/ledger.ts — never edit this file directly.
+
+## entries
+
+```yaml
+entries:
+  - id: C-001
+    kind: risk
+    claim: "Persona is framed as 'any MCP-aware agent' but the real user is n=1 (Shon, Claude Code primary); cross-agent claims are unvalidated portability, not a user-validated need."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: null
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 1
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-002
+    kind: risk
+    claim: "The knowledge-vs-memory boundary is asserted as definitional and lint-enforced, but agent-derived synthesis is a real Shon workflow; risk of forced parallel substrate within 90 days of use."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Personality-vs-experience framing recorded in AG-003 rationale. Stage 2 anti-goal scope language must preserve this distinction; agent-derived synthesis lives in memory frameworks, not the corpus."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 2
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-003
+    kind: risk
+    claim: "Stated success metric (50-query harness, hit-rate >=0.85) depends on a labeled eval set that does not exist and is listed as Future Work in the whitepaper."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "M-001 north-star + AG-005 deferral; instrument (MCP telemetry + corpus mark-accepted CLI) ships in v1."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 3
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-004
+    kind: risk
+    claim: "Maya R. (P-001) objects to A-006: evidence_required only verifies that both Claude Code and Gemini CLI can call corpus.find and return ranked results, not that ranking quality is equivalent across agents — assumption can pass while cross-agent UX still degrades."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 2 to expand A-006 evidence_required to include retrieval-quality parity test (e.g., top-3 Jaccard overlap on a shared 10-query script)."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 4
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-005
+    kind: risk
+    claim: "David Okafor (P-002) objects to A-007: lint-rule-only enforcement of local boundary is insufficient for high-severity privileged-data use case — transitive deps, model telemetry, and future contributors can introduce egress that import-grep won't catch."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 2 to promote runtime egress audit from optional to required for SOL-005-A; consider process-level network namespace deny or eBPF egress monitor."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 5
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-006
+    kind: risk
+    claim: "Priya (P-003) objects to A-008: the 'within 30% of Claude Code baseline' tool-use-rate tolerance is acceptable as a portability claim but inadequate for the persona whose primary reasoning engine is local — for OPP-006 the local-LLM tool-use rate is the entire product, not a degraded fallback."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 2 MUST redefine A-008 success threshold as an absolute target (e.g., >=N corpus.find calls per N llama queries). The relative-to-cloud-baseline framing is invalid and must not appear in Spec."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 6
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-007
+    kind: assumption
+    claim: "Council recommends CONDITIONAL_GO contingent on (1) persona audit confirming P-002/P-003 differentiation per AG-004, (2) Stage 2 SUCCESS-METRICS Spec edition adding measurable per-opportunity metrics for OPP-003, OPP-005, OPP-008."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Both conditions covered by existing carry-forward to Stage 2; tracked as gate conditions in handoffs/stage-1-to-2.md."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 7
+    raised_at_stage: "1-frame"
+    raised_by: "Shon"
+  - id: C-008
+    kind: risk
+    claim: "Carry-forward amnesia: Stage 2 workflow Step 1 only validates handoff existence; never quotes next_stage_focus to Architect. CF-1..CF-5 from stage-1-to-2 handoff would be silently dropped without orchestrator-supplied payload."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Orchestrator passes 5 carry-forward items verbatim in skill invocation payload; gate post-check verifies CF-1..CF-5 landed in artifacts."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 8
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-009
+    kind: risk
+    claim: "AG-004 silent violation: Architect default prompt only reads OPPORTUNITY-TREE.yaml; would let cross-agent OPP-006 candidates be promoted to priority:must without anti-goal cross-check."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Architect prompt overridden to also read ANTI-GOALS.md; OPP-006/Gemini/Codex/Ollama candidates auto-tagged quality_flag:conflicts-anti-goal and capped at priority:should; gate post-check greps must-haves."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 9
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-010
+    kind: risk
+    claim: "SUCCESS-METRICS.md drift: workflow has no step that writes to it; CF-4 (per-opportunity hard metrics for OPP-003/005/008) would be silently skipped."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Orchestrator added explicit step to extend SUCCESS-METRICS.md with M-002 (OPP-003), M-003 (OPP-005), M-004 (OPP-008) — all 6 fields each per gate M-09; gate post-check verifies presence."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 10
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-011
+    kind: risk
+    claim: "FR-003 hybrid ranking — small-implementation passing test possible if any of 4 signals contributes effectively zero weight in fusion (Goodhart F-1)."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @adversary @f-1 scenario asserting Kendall tau between full and per-signal ablated rankings is below 0.95 on 100-query benchmark."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 11
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-012
+    kind: risk
+    claim: "FR-012 grammar-constrained classification — implementation could pass scenarios via post-hoc retry rather than token-level grammar (Goodhart F-6)."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @adversary @f-6 scenario asserting first-attempt schema-validity with retry_count=0 against grammar-eliciting stress prompt."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 12
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-013
+    kind: risk
+    claim: "NFR-002 egress hook missing UDP/DNS/HTTP2/TLS coverage — adversarial classifier could exfiltrate via DNS-over-UDP undetected (Goodhart F-12)."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @adversary @f-12 Scenario Outline covering net.Socket, undici, dgram, dns.lookup, http2.connect, tls.connect — all blocked at in-process hook with egress.blocked telemetry."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 13
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-014
+    kind: risk
+    claim: "NFR-003 latency p95 attackable via result-cache memoization on benchmark queries (Goodhart F-13)."
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @adversary @f-13 scenario requiring 100 unseen queries from 10000-query distribution + instrumented assertion that no result-memoization layer fired."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 14
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-015
+    kind: risk
+    claim: "NFR-006 metric undefined when failure-lane denominator = 0; trivially passable by tuning validation to never fail (Goodhart F-15)."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @adversary @f-15 scenario requiring N>=10 failure events before metric meaningful; below threshold reports inconclusive, not pass."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 15
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-016
+    kind: risk
+    claim: "NFR-002 sentinel-document scope insufficient for David persona (P-002) whose ENTIRE corpus is privileged — needs always-on guard, not sampled spot-check."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Added @david-objection scenario asserting in-process egress hook is active during ALL operations on ALL documents, with telemetry checkpoint per stage transition for entire 50-doc mixed-workload run."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 16
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-017
+    kind: risk
+    claim: "QATester F-2: error envelope error_code stable enumeration is referenced but not enumerated in scenarios — impl returning single 'error' code passes."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Carry-forward: add scenario in Stage 5 pre-build enumerating required error_code values (query_required, invalid_filter, ranking_signal_unavailable, document_not_found, index_locked, server_initializing)."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 17
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-018
+    kind: risk
+    claim: "status update — see prior C-018 entries for original claim; mitigation now complete"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Adversary scenario authored in ACCEPTANCE-CRITERIA.feature per C-033 (Stage 4) and wired into TEST-PLAN.md (Stage 5). Reference: ACCEPTANCE-CRITERIA.feature 'Stage-3 carry-forward adversary tests' / 'binary file with allowlisted extension rejected at MIME-sniff (FR-010 mime_mismatch)' (TC-021). Status updated by RedTeam preflight finding C-039."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 41
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-019
+    kind: risk
+    claim: "status update — see prior C-019 entries for original claim; mitigation now complete"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Adversary scenario authored in ACCEPTANCE-CRITERIA.feature per C-033 (Stage 4) and wired into TEST-PLAN.md (Stage 5). Reference: ACCEPTANCE-CRITERIA.feature 'Stage-3 carry-forward adversary tests' / 'concurrent invocations of the same pipeline stage on the same document produce exactly one row' (TC-035). Status updated by RedTeam preflight finding C-039."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 42
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-020
+    kind: risk
+    claim: "status update — see prior C-020 entries for original claim; mitigation now complete"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Adversary scenario authored in ACCEPTANCE-CRITERIA.feature per C-033 (Stage 4) and wired into TEST-PLAN.md (Stage 5). Reference: ACCEPTANCE-CRITERIA.feature 'Stage-3 carry-forward adversary tests' / '60MB files identical in first 1MB but differing in tail are ingested as separate documents' (TC-025). Status updated by RedTeam preflight finding C-039."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 43
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-021
+    kind: risk
+    claim: "QATester F-3, F-4, F-7, F-9, F-11, F-14: 6 medium-severity Goodhart gaps — manifest auto-load delivery (F-3), recent-ingests timestamp source (F-4), vocabulary case/whitespace/unicode (F-7), checkpoint-write fsync interaction (F-9), failure-lane consistency under concurrent write (F-11), SIGKILL per-trial completeness ambiguity (F-14)."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Carry-forward: address in Validate or Build/Test stage scenario refinements — each is non-blocking individually but worth tracking."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 21
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-022
+    kind: risk
+    claim: "NFR-008 absolute target value is null pending Validate spike data (Q-001); Plan stage cannot finalize threshold without Validate."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Validate stage spike on Ollama+MCP integration MUST produce the absolute floor before Plan stage finalizes NFR-008."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 22
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-023
+    kind: assumption
+    claim: "Council Stage 2 recommends conditional_go contingent on (1) all should-haves get ACs (now mitigated), (2) high-severity QATester findings addressed (F-1, F-6, F-12, F-13, F-15 mitigated; F-5, F-8, F-10 carry-forward), (3) NFR-002 always-on framing added (mitigated via C-016 scenario)."
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Conditions 1 + 3 fully addressed pre-handoff; Condition 2 partially addressed (5 high-severity fixed inline; 3 high-severity F-5/F-8/F-10 carry-forward as C-018/019/020); user approved fix-before-handoff path at PM-Review."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 23
+    raised_at_stage: "2-spec"
+    raised_by: "Shon"
+  - id: C-024
+    kind: assumption
+    claim: "NFR-008 absolute floor N=20 is provisional (Plan stage); FINAL value depends on Stage 5 pilot run with FR-009 prompt template."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 5 pilot run produces final N. If <20, escalate to PM-Review for NFR-008 either downgrade or product-side intervention (better prompt template)."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 24
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-025
+    kind: risk
+    claim: "Cross-version Ollama model behavior — grammar-constrained generation tested on Qwen 2.5 7B; switching to different model family (Llama 3.x) may surface format-parameter quirks."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "NFR-004 100% benchmark per shipped model version; CI runs benchmark on each supported model before release."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 25
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-026
+    kind: risk
+    claim: "sqlite-vec exhaustive KNN degrades visibly past ~25k 384-dim vectors; v1 hard ceiling at 50k docs is conservative but corpus growth must be monitored."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "NFR-003 explicit hard ceiling at 50k; warning at 25k via corpus.health resource (FR-021); sqlite-vec ANN index on roadmap monitoring."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 26
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-027
+    kind: risk
+    claim: "Prior Stage 3 Council ran on the same model (claude-opus-4-7) as the generator agents (Engineer/Research), violating gate.yaml generator_evaluator_check. Per recipe.yaml the evaluator MUST be claude-sonnet-4-6 when generator is claude-opus-4-7 (Panickssery/Bowman/He 2024 self-preference bias)."
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Re-invoke Council on claude-sonnet-4-6 via Agent(model=sonnet); rebuild PM-Review summary with new Council recommendation; supersede prior pm-review-history entry for stage_from=3-validate. Root cause logged: imagined time pressure caused prior agent to bypass model separation."
+    mitigation_owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+    source_concern_line: 27
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-028
+    kind: risk
+    claim: "Desirability quadrant lacks a Stage-5-gateable early signal for A-002 (sustained ≥5 queries/wk). 2 of 3 desirability assumptions deferred to 6-operate; A-001 is reference-implementation only. Without an early-signal proxy, product can ship and instrument correctly yet still fail A-002 at Week 4 with no prior kill signal."
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 4 Plan must add Week-1 engagement-proxy gate to Stage 5 build-test pilot: ≥5 corpus.find queries in first 7 days of dogfooding + ≥1 acceptance event before Stage 6 gate opens. Converts 30-day post-ship A-002 black box into a Stage-5-gated kill signal."
+    mitigation_owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 28
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-029
+    kind: risk
+    claim: "NFR-002 runtime egress hook (D-013) covers 6 JS-land primitives (net.Socket, undici, dgram, dns, http2, tls) but NOT (a) Worker threads with their own module registry, (b) child_process.spawn launching curl/wget, (c) native Node addons making raw POSIX socket calls below the JS layer. SP-002 was paper-only; no tcpdump verification ran. D-013 reversibility=medium understates the architectural commitment."
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 4 Plan must (1) add tcpdump-verified integration test as Stage 5 build-ready gate condition, including synthetic Worker thread + child_process egress attempts, (2) document Worker/child_process/native-addon coverage gaps explicitly in D-013 amendment or new ADR, (3) revise D-013 reversibility from medium to low, (4) ensure hook also fires on import-time side-effect egress (not just runtime call-time)."
+    mitigation_owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 29
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-030
+    kind: risk
+    claim: "NFR-008 absolute floor N=20 (D-012) is provisional from cross-benchmark literature, not from FR-009 prompt template + live Ollama+MCP integration. If real rate falls below 20 on 7B-class models, Priya-persona value collapses with no pre-built remediation. Current carry-forward language specifies no model coverage requirement and no prompt-template iteration budget."
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 4 Plan ROADMAP must include a named NFR-008 pre-build pilot sprint BEFORE main build sprint with: (a) FR-009 prompt template authored and version-controlled, (b) 100-query benchmark on BOTH Llama 3.1 8B Instruct and Qwen 2.5 7B Instruct via live Ollama+MCP, (c) ≥2 prompt-variant iteration cycles if first run <N=25, (d) hard gate: if no variant achieves ≥20 on either model after 2 iterations, NFR-008 downgrades to nice_to_have BEFORE sprint 1 build, not after."
+    mitigation_owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 30
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-031
+    kind: risk
+    claim: "Spike evidence quality across SP-001/003/004/005 is reference+literature analysis, not benchmark output. Workflow.md line 232 standard ('test_evidence MUST be concrete — a number, a quote from a real interview transcript, a benchmark output') is not met. SP-002 cites NodeShield arXiv but no live test ran. Only acknowledged inline; downstream gate criteria treat all 5 'passed' spikes as equivalent."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 5 build-test plan MUST include real spike re-runs as build-ready conditions: actual 100-doc Ollama benchmark for SP-001/A-004, tcpdump test for SP-002 (subsumed by C-029), file-type benchmark on 50-file mixed corpus for SP-003, SQLite UPSERT race harness on parallel writers for SP-004, BERTopic N-parameter sweep on synthetic noisy corpus for SP-005. Status of these assumptions remains 'valid (carry-forward)' with confidence:medium until real evidence lands."
+    mitigation_owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 31
+    raised_at_stage: "3-validate"
+    raised_by: "Shon"
+  - id: C-032
+    kind: risk
+    claim: "status update — D-016 explicitly closes C-032"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Closed by D-016 (Stage 4 PM-Review accepted ADR-001..ADR-008, all 8 ADRs status: proposed -> accepted at 2026-04-26T00:35:00Z). Verified: ls ADRs/ shows 8 files, all frontmatter status: accepted."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 44
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-033
+    kind: risk
+    claim: "SP-003 exit criteria reference c_018_mime_mismatch_adversary_scenario_passes and c_020_full_file_hash_adversary_scenario_passes; SP-006 exit references c_019_concurrent_stage_adversary_scenario_passes. None of these adversary scenarios exist in ACCEPTANCE-CRITERIA.feature — they were Stage 2 'carry-forward to Validate' items that were deferred again. Build team will hit a wall on SP-003 day 1."
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 5 SP-003 entry condition: add 3 Gherkin scenarios (@adversary @f-5, @adversary @f-8, @adversary @f-10) to ACCEPTANCE-CRITERIA.feature BEFORE SP-003 entry — written at SP-001 close or earlier. Update frontmatter scenarios_total from 99 to actual (128+3=131)."
+    mitigation_owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 33
+    raised_at_stage: "4-plan"
+    raised_by: "Shon"
+  - id: C-034
+    kind: risk
+    claim: "status update — D-018 reframes C-034 as ProductBuild-owned"
+    severity: high
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Reframed by D-018: build_environment.yaml is a ProductBuild-owned execution-environment contract, not a ProductDevelopment artifact. Carries forward to ProductBuild for shaping; ProductBuild defines its own tcpdump CAP_NET_RAW recipe (setcap path, Docker --cap-add NET_RAW path, or CI runner strategy) when it implements SP-001. ProductDevelopment delivers requirements + tests + roadmap, not infrastructure recipes."
+    mitigation_owner: "ProductBuild"
+    revalidate_at_sprint: null
+    source_concern_line: 47
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-035
+    kind: risk
+    claim: "status update — D-018 reframes C-035 as ProductBuild-owned"
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Reframed by D-018: sprint-ledger.jsonl is a ProductBuild-owned progress-recording contract, not a ProductDevelopment artifact. ProductBuild may implement sprint completion as sprint-ledger.jsonl OR reuse pm-review-history.jsonl + execution-journal.jsonl OR define its own schema. ProductDevelopment delivers SPRINT-PLAN.yaml entry/exit criteria; ProductBuild owns the progress-journaling format."
+    mitigation_owner: "ProductBuild"
+    revalidate_at_sprint: null
+    source_concern_line: 48
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-036
+    kind: risk
+    claim: "status update — D-016 explicitly closes C-036 via path (b)"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Closed by D-016 path (b): TR-001 install side-effect provisions OS-level firewall rule (pf macOS / iptables Linux); SP-007 exit criterion verifies rule active. ADR-001 Decision section updated inline in Stage 4. TC-049 + TC-050 wire the test plan."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 45
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-037
+    kind: risk
+    claim: "SP-008 Maya Week-1 engagement-proxy (≥5 corpus.find queries + ≥1 acceptance event in 7 days) is the very last exit criterion of the very last sprint (after ~45-50 elapsed build days). If the proxy fails, rollback is to Stage 4 recycle (binary cliff). No mid-build engagement-signal check exists."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Add informal SP-005.5 dogfood checkpoint after SP-005 (corpus.find available) and before SP-006 (storage layer locks): Shon runs ≥10 real corpus.find queries against actual documents, results journaled. Counts toward SP-008 7-day window if instrumented through NFR-016 telemetry. De-risks SP-008 cliff without adding a sprint."
+    mitigation_owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+    source_concern_line: 37
+    raised_at_stage: "4-plan"
+    raised_by: "Shon"
+  - id: C-038
+    kind: risk
+    claim: "Stage 2 ACCEPTANCE-CRITERIA.feature uses per-Feature '# Covers requirements:' comments; handoff-builder.ts pre-fix only recognized per-scenario '# requirement:' tags or inline FR ids in Scenario titles. Build-Ready gate failed with 29 false-negative 'must-haves-have-gherkin' violations on first dry-run"
+    severity: medium
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Extended gherkinScenariosFor() to walk Feature blocks and count scenarios under any Feature whose '# Covers requirements:' comment lists the FR id (D-017). The .feature file convention remains the source of truth; validator now reads what the file actually declares."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 38
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-039
+    kind: risk
+    claim: "C-018/C-019/C-020 remain status=open in concerns.jsonl despite their mitigation work (three @adversary Gherkin scenarios for F-5/F-8/F-10) being completed and present in ACCEPTANCE-CRITERIA.feature as of C-033 closure; the RISK-REGISTER auto-deriving from concerns.jsonl will import these as 3 unresolved high-severity risks"
+    severity: high
+    status: mitigated
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Stage 5 appends status_update entries flipping C-018/019/020 from open to mitigated, citing ACCEPTANCE-CRITERIA.feature scenarios at the 'Stage-3 carry-forward adversary tests' Feature; RISK-REGISTER re-derivation will see them as mitigated; TEST-PLAN already wires them via TC-021/035/025"
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 39
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-040
+    kind: risk
+    claim: "ACCEPTANCE-CRITERIA.feature NFR-008 scenario has a vacuous Then clause: 'meets the absolute floor set at Plan stage' — the floor is deferred to a future artifact and not bound to a concrete value or D-NNN reference at scenario eval time"
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "NFR-008 is priority=should and out of must-have TEST-PLAN scope, so does NOT block Build-Ready. SP-000 pre-build pilot per ADR-005 binds floor to a concrete integer (provisionally N=20 per D-012). Post-pilot, Stage 2 owner can amend the scenario to reference D-012 or hard-code the resolved floor. Tracked here for ProductBuild visibility."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 40
+    raised_at_stage: "5-build-test"
+    raised_by: "Shon"
+  - id: C-041
+    kind: risk
+    claim: "Stage 5 4-perspective Council (sonnet, cross-model from opus generators) voted composite conditional_go on per-stage gate. 2 blocking objections cite SP-001 preconditions (C-034 build_environment.yaml MUST exist; C-036 firewall path MUST be chosen) — both already tracked. 2 logged-only cite C-037 (SP-005.5 formalization) + C-035 (sprint-ledger.jsonl schema)."
+    severity: medium
+    status: open
+    likelihood: unknown
+    impact: unknown
+    mitigation: "Per-stage gate.yaml on_conditional_go: conditions append to concerns.jsonl (this entry). C-034 + C-035 + C-037 already tracked with mitigations. C-036 closure (D-016 path (b)) was post-Council; surface to PM-Review for confirmation. C-034 closure is a SP-001 entry-criterion not a Stage 5 build-ready blocker. PM-Review at terminal gate decides go/recycle/kill/hold (conditional_go forbidden per v3 §9 line 276)."
+    mitigation_owner: "Shon"
+    revalidate_at_sprint: null
+    source_concern_line: 46
+    raised_at_stage: "5-build-test"
+    raised_by: "stage-5-council-per-stage-gate"
+```
+
+## carry-forward to ProductBuild
+
+> Populated from entries where status ∈ {open, valid} AND severity ∈ {medium, high}.
+
+```yaml
+carry_forward:
+  - id: C-001
+    kind: risk
+    severity: medium
+    mitigation: null
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-017
+    kind: risk
+    severity: medium
+    mitigation: "Carry-forward: add scenario in Stage 5 pre-build enumerating required error_code values (query_required, invalid_filter, ranking_signal_unavailable, document_not_found, index_locked, server_initializing)."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-021
+    kind: risk
+    severity: medium
+    mitigation: "Carry-forward: address in Validate or Build/Test stage scenario refinements — each is non-blocking individually but worth tracking."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-022
+    kind: risk
+    severity: medium
+    mitigation: "Validate stage spike on Ollama+MCP integration MUST produce the absolute floor before Plan stage finalizes NFR-008."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-024
+    kind: assumption
+    severity: medium
+    mitigation: "Stage 5 pilot run produces final N. If <20, escalate to PM-Review for NFR-008 either downgrade or product-side intervention (better prompt template)."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-025
+    kind: risk
+    severity: medium
+    mitigation: "NFR-004 100% benchmark per shipped model version; CI runs benchmark on each supported model before release."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-026
+    kind: risk
+    severity: medium
+    mitigation: "NFR-003 explicit hard ceiling at 50k; warning at 25k via corpus.health resource (FR-021); sqlite-vec ANN index on roadmap monitoring."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-027
+    kind: risk
+    severity: high
+    mitigation: "Re-invoke Council on claude-sonnet-4-6 via Agent(model=sonnet); rebuild PM-Review summary with new Council recommendation; supersede prior pm-review-history entry for stage_from=3-validate. Root cause logged: imagined time pressure caused prior agent to bypass model separation."
+    owner: "ProductDevelopment"
+    revalidate_at_sprint: null
+  - id: C-028
+    kind: risk
+    severity: high
+    mitigation: "Stage 4 Plan must add Week-1 engagement-proxy gate to Stage 5 build-test pilot: ≥5 corpus.find queries in first 7 days of dogfooding + ≥1 acceptance event before Stage 6 gate opens. Converts 30-day post-ship A-002 black box into a Stage-5-gated kill signal."
+    owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-029
+    kind: risk
+    severity: high
+    mitigation: "Stage 4 Plan must (1) add tcpdump-verified integration test as Stage 5 build-ready gate condition, including synthetic Worker thread + child_process egress attempts, (2) document Worker/child_process/native-addon coverage gaps explicitly in D-013 amendment or new ADR, (3) revise D-013 reversibility from medium to low, (4) ensure hook also fires on import-time side-effect egress (not just runtime call-time)."
+    owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-030
+    kind: risk
+    severity: high
+    mitigation: "Stage 4 Plan ROADMAP must include a named NFR-008 pre-build pilot sprint BEFORE main build sprint with: (a) FR-009 prompt template authored and version-controlled, (b) 100-query benchmark on BOTH Llama 3.1 8B Instruct and Qwen 2.5 7B Instruct via live Ollama+MCP, (c) ≥2 prompt-variant iteration cycles if first run <N=25, (d) hard gate: if no variant achieves ≥20 on either model after 2 iterations, NFR-008 downgrades to nice_to_have BEFORE sprint 1 build, not after."
+    owner: "Stage-4-Plan-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-031
+    kind: risk
+    severity: medium
+    mitigation: "Stage 5 build-test plan MUST include real spike re-runs as build-ready conditions: actual 100-doc Ollama benchmark for SP-001/A-004, tcpdump test for SP-002 (subsumed by C-029), file-type benchmark on 50-file mixed corpus for SP-003, SQLite UPSERT race harness on parallel writers for SP-004, BERTopic N-parameter sweep on synthetic noisy corpus for SP-005. Status of these assumptions remains 'valid (carry-forward)' with confidence:medium until real evidence lands."
+    owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-033
+    kind: risk
+    severity: high
+    mitigation: "Stage 5 SP-003 entry condition: add 3 Gherkin scenarios (@adversary @f-5, @adversary @f-8, @adversary @f-10) to ACCEPTANCE-CRITERIA.feature BEFORE SP-003 entry — written at SP-001 close or earlier. Update frontmatter scenarios_total from 99 to actual (128+3=131)."
+    owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-034
+    kind: risk
+    severity: high
+    mitigation: "Reframed by D-018: build_environment.yaml is a ProductBuild-owned execution-environment contract, not a ProductDevelopment artifact. Carries forward to ProductBuild for shaping; ProductBuild defines its own tcpdump CAP_NET_RAW recipe (setcap path, Docker --cap-add NET_RAW path, or CI runner strategy) when it implements SP-001. ProductDevelopment delivers requirements + tests + roadmap, not infrastructure recipes."
+    owner: "ProductBuild"
+    revalidate_at_sprint: null
+  - id: C-035
+    kind: risk
+    severity: medium
+    mitigation: "Reframed by D-018: sprint-ledger.jsonl is a ProductBuild-owned progress-recording contract, not a ProductDevelopment artifact. ProductBuild may implement sprint completion as sprint-ledger.jsonl OR reuse pm-review-history.jsonl + execution-journal.jsonl OR define its own schema. ProductDevelopment delivers SPRINT-PLAN.yaml entry/exit criteria; ProductBuild owns the progress-journaling format."
+    owner: "ProductBuild"
+    revalidate_at_sprint: null
+  - id: C-037
+    kind: risk
+    severity: medium
+    mitigation: "Add informal SP-005.5 dogfood checkpoint after SP-005 (corpus.find available) and before SP-006 (storage layer locks): Shon runs ≥10 real corpus.find queries against actual documents, results journaled. Counts toward SP-008 7-day window if instrumented through NFR-016 telemetry. De-risks SP-008 cliff without adding a sprint."
+    owner: "Stage-5-build-test-orchestrator"
+    revalidate_at_sprint: null
+  - id: C-040
+    kind: risk
+    severity: medium
+    mitigation: "NFR-008 is priority=should and out of must-have TEST-PLAN scope, so does NOT block Build-Ready. SP-000 pre-build pilot per ADR-005 binds floor to a concrete integer (provisionally N=20 per D-012). Post-pilot, Stage 2 owner can amend the scenario to reference D-012 or hard-code the resolved floor. Tracked here for ProductBuild visibility."
+    owner: "Shon"
+    revalidate_at_sprint: null
+  - id: C-041
+    kind: risk
+    severity: medium
+    mitigation: "Per-stage gate.yaml on_conditional_go: conditions append to concerns.jsonl (this entry). C-034 + C-035 + C-037 already tracked with mitigations. C-036 closure (D-016 path (b)) was post-Council; surface to PM-Review for confirmation. C-034 closure is a SP-001 entry-criterion not a Stage 5 build-ready blocker. PM-Review at terminal gate decides go/recycle/kill/hold (conditional_go forbidden per v3 §9 line 276)."
+    owner: "Shon"
+    revalidate_at_sprint: null
+```
+
+## terminal-gate blockers (must be empty for `go`)
+
+```yaml
+build_ready_blockers:
+  []
+```
+
+**Build-Ready posture: clean.** No open high-severity concerns lack mitigation; `build_ready_blockers` is empty.
+
+---
+
+*Source of truth: `ledgers/concerns.jsonl` — append via `Tools/ledger.ts`, never edit this file.*

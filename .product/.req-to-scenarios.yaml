@@ -1,0 +1,180 @@
+requirement_to_scenarios:
+  FR-001:
+  - corpus.find tool is discoverable via MCP tool-listing handshake
+  - stdio transport is the only registered transport
+  - server registers exactly one corpus.find tool with no aliases
+  - tools/list during server cold-start returns retriable error
+  FR-002:
+  - corpus.find returns a ranked SearchHit list for a structured query
+  - corpus.find with empty query returns structured error envelope
+  - corpus.find on an empty corpus returns an empty SearchHit list
+  - corpus.find with malformed filter facet returns structured error
+  FR-003:
+  - corpus.find ranking fuses BM25, dense, graph, and confidence signals
+  - dense-vector signal failure does not silently disable ranking
+  - ranking handles a query matching only one of the four signals
+  - disabling any single ranking signal measurably changes top-K results
+  FR-004:
+  - corpus.find non-success returns structured error envelope as MCP tool response
+  - error envelope error_code values come from a stable enumerated set
+  - transport-level disconnect during corpus.find produces no orphaned state
+  FR-005:
+  - manifest resource is registered at corpus://manifest with auto-load annotation
+  - manifest resource is not exposed at any non-canonical URI
+  - manifest on freshly initialized empty corpus returns zero counts
+  FR-006:
+  - taxonomy resource enumerates established domains and tags with counts
+  - taxonomy resource excludes proposed-only terms
+  - taxonomy on empty corpus returns empty domain and tag lists
+  FR-007:
+  - recent-ingests resource lists most recent successful ingests
+  - recent-ingests resource excludes failure-lane documents
+  - recent-ingests on empty corpus returns empty list
+  FR-008:
+  - per-document resource at corpus://docs/{id} returns normalized body and frontmatter
+  - per-document resource for unknown id returns structured not-found error
+  - SearchHit URIs returned by corpus.find dereference exactly to per-document resource
+    URIs
+  - per-document resource read while index is locked returns retriable error
+  FR-009:
+  - server registers at least one retrieval prompt template
+  - prompts/list never returns an empty list when retrieval template is required
+  - registered prompt template includes structured instruction for knowledge-grounded
+    questions
+  FR-010:
+  - file dropped into inbox is enqueued for ingest after passing validation
+  - file with disallowed extension is rejected at validation gate
+  - file at maximum allowed size passes validation
+  - file exceeding max size is rejected with structured diagnostic
+  - filename failing sanity check is rejected before content read
+  FR-011:
+  - PDF document is normalized to Markdown body with structured YAML frontmatter
+  - HTML document with unsupported encoding is routed to failure lane
+  - plain-text file with zero bytes normalizes to an empty Markdown body
+  FR-012:
+  - classifier emits schema-valid metadata via grammar-constrained generation
+  - classifier without grammar constraint configuration refuses to start
+  - classifier handles document with maximum-length content within token budget
+  - Ollama service unavailable routes documents to failure lane with retriable flag
+  - classifier produces schema-valid output on first generation attempt with retry_count=0
+  FR-013:
+  - schema-validated classifier output is written to frontmatter
+  - schema-invalid classifier output routes document to failure lane (no silent coercion)
+  - validator does not coerce missing required fields
+  FR-014:
+  - classifier accepts established vocabulary and emits established values directly
+  - classifier MUST NOT silently introduce a never-seen term into established field
+  - classifier proposes new term via separate proposed facet without polluting established
+  - vocabulary validation across input cases
+  FR-015:
+  - classified document is embedded and inserted into single SQLite index
+  - embedding model failure routes document to failure lane and skips index write
+  - zero-content document still produces deterministic index rows
+  FR-016a:
+  - re-running a stage on the same input produces identical persistent state
+  - re-running validate stage does not enqueue a duplicate ingest job
+  - each pipeline stage is independently idempotent across all 5 stages
+  FR-016b:
+  - process killed mid-classify resumes from per-stage checkpoint on restart
+  - kill before extract checkpoint leaves no partial frontmatter writes
+  - per-stage checkpoint is recorded only after stage success
+  - corrupted checkpoint file forces full pipeline re-run for affected document
+  FR-017:
+  - identical file dropped twice short-circuits via content-hash idempotency
+  - same logical file with modified content produces a new document
+  - identical content under different filenames is detected as duplicate
+  FR-018:
+  - failed pipeline stage routes document to failure lane with structured diagnostic
+  - failed documents do NOT enter the searchable index
+  - failure lane is inspectable via both filesystem and corpus://failures resource
+  - failure-lane writes are durable across crashes
+  UR-001:
+  - dropped document becomes queryable on next matching query without further action
+  - dropped document that fails classification is NOT silently queryable
+  - dropped document becomes queryable within the configured ingest budget
+  UR-002:
+  - agent invokes corpus.find and grounds answer with traceable references
+  - agent does not fabricate corpus citations when corpus.find returns empty
+  - cross-document grounding works when SearchHits span multiple documents
+  UR-003:
+  - install once, available across new agent sessions via auto-loaded resources
+  - opening a new session does not duplicate corpus state
+  - agent session started before corpus init returns a clear unavailable error
+  TR-001:
+  - single `corpus init` command provisions server, index, and inbox in XDG layout
+  - re-running `corpus init` on existing install does not destroy user data
+  - install requires zero multi-step manual configuration
+  - install on machine without write permission to XDG dirs fails with clear error
+  TR-002:
+  - '`corpus uninstall` removes server registration but preserves user data by default'
+  - '`corpus uninstall` does NOT remove user data without explicit destructive flag'
+  - '`corpus uninstall --purge` removes user data only with explicit destructive flag'
+  NFR-001:
+  - CI lint passes when no forbidden network imports exist in pipeline or adapter
+    packages
+  - CI lint fails the build when a forbidden network import is added to pipeline package
+  - forbidden import detection across import patterns
+  - lint runs on every PR (not just main)
+  NFR-002:
+  - Runtime egress audit for privileged-data path
+  - integration test fires HTTP to disallowed host and asserts blocking + audit
+  - in-process Node hook blocks undici dispatcher AND raw net.Socket connect
+  - OS-level pf/iptables defense-in-depth blocks egress under MCP server UID
+  - in-process Node hook blocks all outbound network primitives
+  - in-process egress hook is active during ALL operations on ALL documents (not sentinel-only)
+  NFR-003:
+  - corpus.find p95 latency at 5k docs is at most 250 ms
+  - corpus.find p50 latency at 5k docs is at most 100 ms
+  - corpus.find latency budget is measured at 5k-doc corpus, not smaller
+  - cold-cache run is reported separately and does not satisfy the warm-cache budget
+  - corpus.find p95 latency holds on unseen query distribution with no result memoization
+  NFR-004:
+  - classifier produces schema-valid output on 100% of 100-document benchmark
+  - a single schema-invalid classifier response in benchmark fails the NFR
+  NFR-005:
+  - pipeline survives SIGKILL at each of 5 stages on 50-doc run with no duplicate
+    ingest
+  - SIGKILL during classify stage produces no orphaned embedding rows
+  - SIGKILL across multiple trials accumulates zero index corruption incidents
+  - SIGKILL during index commit leaves SQLite in valid WAL-recoverable state
+  NFR-006:
+  - every failure-lane entry contains stage, error_code, message, source pointer,
+    retriable flag
+  - 100% of failure-lane interactions in 30-day use are resolved via CLI or agent
+    (no missing-UI blocker)
+  - failure-lane entries that lack a source pointer are detected by validation
+  - NFR-006 metric requires minimum N=10 failure-lane events before computing rate
+  NFR-014:
+  - first-run setup completes in at most 90 seconds end-to-end
+  - first-run setup does not require Docker or a compile step
+  - first-run setup on machine without Node 18+ exits with clear remediation
+  NFR-015:
+  - SQLite WAL recovery on reopen completes in at most 2 seconds for WAL <100 MB
+  - WAL recovery time remains within budget at the 100 MB upper bound
+  NFR-007:
+  - Cross-agent retrieval quality parity
+  NFR-008:
+  - Local-LLM tool-use rate is an absolute target, not relative-to-cloud
+  FR-019:
+  - proposed term auto-promotes to established after N independent ingests
+  - promotion does not fire below threshold
+  FR-020:
+  - corpus add accepts a URL and ingests the response body as a document
+  FR-021:
+  - corpus.health exposes pipeline counters and failure-lane size
+  FR-022:
+  - corpus MCP server is invocable from a non-Claude-Code MCP client
+  FR-023:
+  - corpus MCP server is invocable from an Ollama-served local LLM
+  UR-004:
+  - user re-classifies an existing document on demand
+  UR-005:
+  - user replays a failed ingest after correcting source
+  NFR-009:
+  - classifier wall-clock per document meets single-stream and concurrent budgets
+  NFR-010:
+  - index storage is exactly one SQLite file
+  NFR-011:
+  - every pipeline stage transition emits exactly one structured log event
+  NFR-016:
+  - telemetry layer emits at least 6 named event classes

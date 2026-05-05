@@ -1,0 +1,922 @@
+# Stage 2 Spec — candidate requirements (post-orchestrator-Splitting-Test, pre-promotion)
+# Source: Architect agent output 2026-04-27T01:42 + Research-derived NFR baselines
+# Splitting Test applied: FR-016 split into FR-016a (idempotent) + FR-016b (resumable)
+# Research baselines integrated: NFR-003, NFR-014, NFR-015, NFR-016 added/refined
+
+candidates:
+
+  # ═══════════════════════════════════════════════════════════════════
+  # MUST-HAVE — SOLUTION (MCP server core surface)
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: FR-001
+    title: "MCP server exposes corpus.find tool over stdio transport"
+    description: |
+      The system runs as a single MCP server process that registers a corpus.find tool
+      with the MCP runtime. The tool is discoverable via the standard MCP tool-listing
+      handshake and invokable by any MCP-aware client connected over stdio.
+    priority: must
+    category: solution
+    dependencies: []
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-002
+    title: "corpus.find accepts a structured query and returns ranked SearchHit list"
+    description: |
+      The corpus.find tool takes a structured input (free-text query string + optional
+      filter facets) and returns an ordered SearchHit list. Each hit has stable URI,
+      relevance-ordered rank, confidence-weighted score, and content excerpt sufficient
+      for grounding without an additional fetch.
+    priority: must
+    category: solution
+    dependencies: [FR-001]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-003
+    title: "corpus.find ranks results via hybrid retrieval (BM25 + dense + graph + confidence)"
+    description: |
+      Ranking fuses keyword match (FTS5 BM25), dense vector similarity (sqlite-vec),
+      knowledge-graph edges, and classifier-assigned confidence. Specific fusion algorithm
+      (RRF, weighted sum, etc.) deferred to ADR; the four signals MUST all be inputs.
+    priority: must
+    category: solution
+    dependencies: [FR-002]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-004
+    title: "corpus.find returns deterministic structured error envelope on failure"
+    description: |
+      Non-success outcomes return a structured error envelope (stable error-code enum,
+      human-readable message, hint field) as a normal MCP tool response — not a transport
+      exception — so calling agents reason about failures in-band.
+    priority: must
+    category: solution
+    dependencies: [FR-002]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-005
+    title: "MCP server exposes corpus manifest as auto-loaded resource"
+    description: |
+      The server registers a manifest resource at corpus://manifest summarizing corpus
+      state (doc count, established domains, established tags, last ingest timestamp).
+      Annotated for auto-load at session start so agents bias toward the corpus without
+      per-prompt nudging.
+    priority: must
+    category: solution
+    dependencies: [FR-001]
+    source_opportunity: OPP-002
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-006
+    title: "MCP server exposes taxonomy resource listing established domains and tags"
+    description: |
+      Resource at corpus://taxonomy enumerates established (promoted) domains and tags
+      with per-term document counts. Canonical vocabulary for filtering corpus.find calls.
+    priority: must
+    category: solution
+    dependencies: [FR-005]
+    source_opportunity: OPP-002
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-007
+    title: "MCP server exposes recent-ingests resource"
+    description: |
+      Resource at corpus://recent lists most recently successfully ingested documents
+      (title, domain, tags, ingest timestamp). Default window N (negotiable at Plan).
+    priority: must
+    category: solution
+    dependencies: [FR-005]
+    source_opportunity: OPP-002
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-008
+    title: "MCP server exposes per-document resource at stable URI"
+    description: |
+      Each ingested document addressable via stable URI corpus://docs/{id} returning
+      normalized Markdown body + YAML frontmatter. URIs returned by corpus.find
+      dereference here without ambiguity.
+    priority: must
+    category: solution
+    dependencies: [FR-002]
+    source_opportunity: OPP-004
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-009
+    title: "MCP server registers reusable retrieval prompt templates"
+    description: |
+      Server registers ≥1 reusable MCP prompt template instructing calling agents on
+      how/when to invoke corpus.find before answering knowledge-grounded questions.
+      Required for A-001 (cloud-LLM tool-use rate) to be testable in Validate.
+    priority: must
+    category: solution
+    dependencies: [FR-001]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # MUST-HAVE — SOLUTION (Ingest pipeline)
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: FR-010
+    title: "Filesystem inbox watcher enqueues new documents for ingest"
+    description: |
+      Watcher monitors configured inbox directory. New files pass validation gate
+      (extension allowlist, MIME sniff, max size, filename sanity) before enqueue.
+      Watcher runs in same local process tree as server.
+    priority: must
+    category: solution
+    dependencies: []
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-011
+    title: "Ingest pipeline normalizes documents to Markdown with YAML frontmatter"
+    description: |
+      Each accepted document extracted (PDF/HTML/text/etc.) and normalized to Markdown
+      body + structured YAML frontmatter (id, source path, ingest timestamp, MIME type, hash).
+    priority: must
+    category: solution
+    dependencies: [FR-010]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-012
+    title: "Local-LLM classifier emits schema-valid metadata via grammar-constrained generation"
+    description: |
+      Classifier invokes local LLM (Ollama-served) with format param set to a Zod-derived
+      JSON Schema. Output structurally constrained at token-generation level — invalid
+      metadata impossible by construction. Schema covers domain, tags, summary, confidence.
+    priority: must
+    category: solution
+    dependencies: [FR-011]
+    source_opportunity: OPP-003
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-013
+    title: "Classifier output is schema-validated before frontmatter writeback"
+    description: |
+      Defense-in-depth validator runs on each classifier response before frontmatter write.
+      Validation failure routes document to failure lane with structured diagnostic — does
+      NOT silently drop or coerce.
+    priority: must
+    category: solution
+    dependencies: [FR-012]
+    source_opportunity: OPP-003
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-014
+    title: "Classifier validates domains and tags against the live corpus vocabulary"
+    description: |
+      Classifier given current established vocabulary. MAY emit established values OR
+      propose new via separate facet_domain_proposed / facet_tags_proposed field — MUST NOT
+      silently introduce never-seen term into established field.
+    priority: must
+    category: solution
+    dependencies: [FR-012, FR-006]
+    source_opportunity: OPP-007
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-015
+    title: "Classified document is embedded and indexed for hybrid retrieval"
+    description: |
+      Post-classification, document body embedded with configured local embedding model
+      and inserted into retrieval index alongside keyword tokens, frontmatter facets,
+      and graph edges. Index stored in single SQLite file.
+    priority: must
+    category: solution
+    dependencies: [FR-013]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-016a
+    title: "Pipeline stages are idempotent (re-running a stage produces no duplicate writes)"
+    description: |
+      Each pipeline stage (validate, extract, classify, embed, index) is idempotent —
+      re-execution on the same input produces identical persistent state with no
+      duplicate index rows, frontmatter entries, or embedding rows.
+    priority: must
+    category: solution
+    dependencies: [FR-011, FR-013, FR-015]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-016b
+    title: "Pipeline is resumable from per-stage checkpoints after process kill"
+    description: |
+      Each stage records per-document checkpoint on successful completion. Process killed
+      at any stage leaves corpus in recoverable state; on restart, pipeline resumes from
+      last successful stage per document — no duplicates, no partial writes. (Split from
+      FR-016 per Splitting Test: idempotency and resumability are independently verifiable.)
+    priority: must
+    category: solution
+    dependencies: [FR-016a]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-017
+    title: "Pipeline uses content-hash idempotency keys to prevent duplicate ingest"
+    description: |
+      Each document identified by stable content hash at validation. Re-submission of
+      identical content (file dropped twice, URL re-fetched unchanged) detected and
+      short-circuits to no-op rather than producing duplicates.
+    priority: must
+    category: solution
+    dependencies: [FR-010]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-018
+    title: "Failed ingests route to a failure lane with structured diagnostics"
+    description: |
+      Failed pipeline stage moves doc to failure lane with structured diagnostic record
+      (stage, error code, message, retriable flag, source pointer). Inspectable via
+      filesystem AND MCP resource corpus://failures. Failed docs do NOT enter searchable
+      index. AG-001 honored (no UI; structured-data + agent-mediated).
+    priority: must
+    category: solution
+    dependencies: [FR-016b]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # MUST-HAVE — STAKEHOLDER
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: UR-001
+    title: "User can drop a file into the inbox and have it become queryable without further action"
+    description: |
+      P-001 (Maya) drops PDF/Markdown/text into configured inbox. With no further action,
+      doc validated, normalized, classified, embedded, indexed, and returnable from
+      corpus.find on next matching query.
+    priority: must
+    category: stakeholder
+    dependencies: [FR-010, FR-011, FR-012, FR-015]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: UR-002
+    title: "User can ask their agent a knowledge-grounded question and receive a corpus-grounded answer"
+    description: |
+      P-001 (Maya) or P-002 (David) opens Claude Code session, asks question whose answer
+      is in corpus. Agent invokes corpus.find, receives ranked SearchHits, grounds answer
+      with traceable references back to source documents.
+    priority: must
+    category: stakeholder
+    dependencies: [FR-002, FR-008, FR-009]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: UR-003
+    title: "User can install the corpus once and have it available across new agent sessions"
+    description: |
+      After single install, every new agent session sees corpus state via auto-loaded
+      manifest/taxonomy/recent-ingests resources — no per-session reconfiguration,
+      session-start does not re-feed corpus.
+    priority: must
+    category: stakeholder
+    dependencies: [FR-005, FR-006, FR-007]
+    source_opportunity: OPP-002
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # MUST-HAVE — TRANSITION
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: TR-001
+    title: "Single install command provisions server, index, and inbox directory"
+    description: |
+      Single command (`corpus init`) creates XDG-compliant directory layout (config, data,
+      state), empty SQLite index, inbox directory; registers MCP server with user's MCP-client
+      config; prints next-step instructions. No multi-step manual configuration.
+    priority: must
+    category: transition
+    dependencies: [FR-001, FR-010, FR-015]
+    source_opportunity: OPP-004
+    source_concerns: []
+    quality_flag: null
+
+  - id: TR-002
+    title: "Install is reversible — uninstall removes server registration without deleting corpus data"
+    description: |
+      Uninstall removes only what install created in agent-tooling configuration; user
+      data (ingested docs, index file, frontmatter) preserved by default, removed only
+      via explicit destructive flag.
+    priority: must
+    category: transition
+    dependencies: [TR-001]
+    source_opportunity: OPP-004
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # MUST-HAVE — NON-FUNCTIONAL (Research-derived numbers integrated)
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: NFR-001
+    title: "Local-only enforcement via static lint of forbidden network imports"
+    description: |
+      Repository lint scans pipeline + adapter source packages and fails build on any
+      forbidden network import (no fetch, no http/https client, no cloud-provider SDK).
+      Runs in CI on every PR. Compile-time half of local-only enforcement.
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: security
+    quantitative_targets:
+      - metric: forbidden_imports_in_pipeline_or_adapter_packages
+        value: 0
+        unit: count
+        test_method: CI lint job over full source tree on every PR
+    dependencies: []
+    source_opportunity: OPP-005
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-002
+    title: "Runtime egress audit confirms zero outbound non-loopback packets on privileged-data path"
+    description: |
+      End-to-end ingest-classify-index-find cycle on sentinel privileged document — runtime
+      packet capture observes zero outbound non-loopback packets. Runtime half of local-only
+      enforcement (CF-2 from Stage 1 handoff, refining A-007). Recommended approach per
+      Stage 2 Research: in-process Node hook (undici dispatcher + net.Socket patch) +
+      OS-level pf/iptables defense-in-depth on MCP server UID. Not subject to AG-004
+      (local-only enforcement, not cross-agent).
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: security
+    quantitative_targets:
+      - metric: outbound_non_loopback_packets_during_full_cycle
+        value: 0
+        unit: packets
+        test_method: tcpdump on non-loopback interfaces during full ingest+classify+index+find of sentinel privileged doc; integration test fires HTTP/DNS/raw-TCP to disallowed hosts and asserts blocking + audit log entry
+    dependencies: [NFR-001]
+    source_opportunity: OPP-005
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-003
+    title: "corpus.find p95 latency ≤ 250ms at 5k docs (Research-baselined)"
+    description: |
+      For corpus up to 5,000 docs on Shon's reference hardware, corpus.find returns ranked
+      SearchHits within p95 ≤ 250ms (p50 ≤ 100ms). Baseline: sqlite-vec exhaustive KNN
+      ~8-25ms on 5k 384-dim vectors; Smart Connections UX bar of "responsive without
+      third-party vector DB". Source: Stage 2 Research 2026-04-27, sqlite-vec README.
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: performance
+    quantitative_targets:
+      - metric: corpus_find_latency_p95
+        value: 250
+        unit: ms
+        test_method: 100-query synthetic workload via better-sqlite3 benchmark harness, warm SQLite page cache, 5000-doc corpus on reference hardware
+      - metric: corpus_find_latency_p50
+        value: 100
+        unit: ms
+        test_method: same harness as p95
+    dependencies: [FR-002, FR-003]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-004
+    title: "Classifier produces schema-valid output on 100% of inputs in benchmark"
+    description: |
+      Across 100-document benchmark spanning supported MIME types, classifier (FR-012)
+      produces schema-valid output on 100% of documents. Validates A-004 (grammar-constrained
+      generation reliability).
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: reliability
+    quantitative_targets:
+      - metric: schema_valid_classifier_output_rate
+        value: 100
+        unit: percent
+        test_method: 100-document benchmark; Zod schema validation on every classifier response
+    dependencies: [FR-012, FR-013]
+    source_opportunity: OPP-003
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-005
+    title: "Pipeline survives kill -9 at any stage without index corruption or duplicate ingest"
+    description: |
+      Test harness sends SIGKILL at each of 5 stages on 50-doc run. After restart, pipeline
+      resumes and completes all 50 docs exactly once with no duplicate index entries,
+      no partial frontmatter, no orphaned embeddings. SQLite integrity check passes.
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: reliability
+    quantitative_targets:
+      - metric: docs_ingested_exactly_once_after_kill_at_each_stage
+        value: 50
+        unit: docs
+        test_method: SIGKILL harness, 5 trials (one per stage) over 50-doc set
+      - metric: index_corruption_after_kill
+        value: 0
+        unit: incidents
+        test_method: SQLite PRAGMA integrity_check post-resume
+    dependencies: [FR-016a, FR-016b]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-006
+    title: "Failure lane diagnostics are sufficient for triage without a UI"
+    description: |
+      Each failure-lane entry contains enough structured info (stage, error code, message,
+      source pointer, retriable flag) that user triages and acts (replay, correct, delete)
+      using only CLI tooling and MCP failure resource. No human-facing UI required (AG-001).
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: usability
+    quantitative_targets:
+      - metric: failure_lane_entries_actionable_without_UI_in_30_day_use
+        value: 100
+        unit: percent
+        test_method: 30-day Shon-with-Claude-Code use; classify each failure-lane interaction as resolved-via-CLI-or-agent vs blocked-on-missing-UI
+    dependencies: [FR-018]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-014
+    title: "First-run setup ≤ 90 seconds from npx invocation to first successful corpus.find (Research-baselined)"
+    description: |
+      Clean-machine timing of `npx <pkg> init` → first successful corpus.find query
+      completes in ≤ 90 seconds. Floor = no Docker, no compile step. Comparison: Mem0
+      self-hosted ~2-5 min (with Docker pulls); Letta Code sub-minute with Node 18+
+      present. Source: Stage 2 Research 2026-04-27.
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: usability
+    quantitative_targets:
+      - metric: time_from_npx_to_first_corpus_find_result
+        value: 90
+        unit: seconds
+        test_method: Clean Linux + macOS machines, time `npx <pkg> init` through ingest of single seed doc through first matching corpus.find query
+    dependencies: [TR-001, FR-002, FR-010, FR-015]
+    source_opportunity: OPP-004
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-015
+    title: "SQLite WAL recovery on reopen ≤ 2 seconds for WAL files <100MB (Research-baselined)"
+    description: |
+      After ungraceful shutdown (process crash mid-write), SQLite WAL replay on next
+      reopen completes in ≤ 2 seconds for WAL files <100MB. Source: SQLite WAL docs,
+      Stage 2 Research 2026-04-27.
+    priority: must
+    category: nonfunctional
+    nfr_subcategory: reliability
+    quantitative_targets:
+      - metric: wal_recovery_time_on_reopen_after_crash
+        value: 2000
+        unit: ms
+        test_method: Inject corruption (truncate WAL mid-write), measure reopen + PRAGMA integrity_check wall-clock; WAL file size <100MB
+    dependencies: [FR-015]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SHOULD-HAVE — SOLUTION
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: FR-019
+    title: "Dynamic-taxonomy promotion mechanism elevates proposed terms to established"
+    description: |
+      Proposed domain/tag (from FR-014) suggested across N independent ingests (N negotiable,
+      adoption-threshold) auto-promotes to established. Promotion logged. Established terms
+      then appear in taxonomy resource (FR-006) and become valid for established facets.
+    priority: should
+    category: solution
+    dependencies: [FR-014, FR-006]
+    source_opportunity: OPP-007
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-020
+    title: "Inbox accepts URLs as a document source in addition to local files"
+    description: |
+      In addition to file drop, inbox accepts URL submission via CLI (`corpus add <url>`).
+      URL fetched once at submission time; response body treated as document content;
+      original URL recorded in frontmatter. URL-fetch adapter is the only outbound network
+      call permitted in entire system; lives in clearly separated adapter so NFR-001 lint
+      can scope-exempt explicitly.
+    priority: should
+    category: solution
+    dependencies: [FR-010, FR-017]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-021
+    title: "Server exposes a corpus.health diagnostic resource"
+    description: |
+      Diagnostic resource at corpus://health exposes pipeline throughput counters,
+      failure-lane size, index doc count, last-ingest timestamps for operator triage
+      from inside agent session.
+    priority: should
+    category: solution
+    dependencies: [FR-001, FR-018]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SHOULD-HAVE — CROSS-AGENT (AG-004 CONSTRAINED)
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: FR-022
+    title: "MCP server is invocable from MCP-aware agents other than Claude Code"
+    description: |
+      Server registers with standard MCP discovery + transport such that other MCP-aware
+      clients (Gemini CLI, Codex CLI) can connect and invoke corpus.find. Portability
+      property of protocol, not v1 user-validated capability.
+    priority: should
+    category: solution
+    dependencies: [FR-001]
+    source_opportunity: OPP-004
+    source_concerns: [C-001]
+    quality_flag: conflicts-anti-goal
+
+  - id: FR-023
+    title: "MCP server is invocable from Ollama-served local LLMs (qwen3, llama3)"
+    description: |
+      Server's stdio transport works with Ollama-served local models supporting MCP tool use.
+      corpus.find responses consumable by these models. Portability per AG-004, not
+      user-validated capability.
+    priority: should
+    category: solution
+    dependencies: [FR-001, FR-022]
+    source_opportunity: OPP-006
+    source_concerns: [C-009]
+    quality_flag: conflicts-anti-goal
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SHOULD-HAVE — STAKEHOLDER
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: UR-004
+    title: "User can re-classify an existing document on demand"
+    description: |
+      P-002 (David) edits source of ingested doc or wants to re-run classification under
+      updated taxonomy. CLI command re-runs classify+embed+index for named doc; old index
+      rows replaced atomically.
+    priority: should
+    category: stakeholder
+    dependencies: [FR-012, FR-015, FR-017]
+    source_opportunity: OPP-007
+    source_concerns: []
+    quality_flag: null
+
+  - id: UR-005
+    title: "User can replay a failed ingest after correction"
+    description: |
+      P-001 (Maya) inspects failure lane (FR-018), corrects underlying issue (e.g., re-saves
+      corrupt PDF), issues CLI replay command. Document re-enters pipeline at appropriate stage.
+    priority: should
+    category: stakeholder
+    dependencies: [FR-018, FR-016b]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SHOULD-HAVE — NON-FUNCTIONAL
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: NFR-007
+    title: "Cross-agent retrieval-quality parity (top-3 Jaccard ≥ 0.7 on shared queries)"
+    description: |
+      For shared 20-query script, top-3 SearchHits returned by corpus.find when invoked
+      from Claude Code vs Gemini CLI have Jaccard similarity ≥ 0.7. Cross-agent NFR
+      refined from A-006 by Stage 1 handoff CF-1. AG-004 applies (cross-agent →
+      should-priority).
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: reliability
+    quantitative_targets:
+      - metric: top3_jaccard_claude_vs_gemini
+        value: 0.7
+        unit: ratio
+        test_method: 20-query shared script run via Claude Code MCP + Gemini CLI MCP against identical corpus snapshot; compare top-3 doc URIs per query
+    dependencies: [FR-022]
+    source_opportunity: OPP-004
+    source_concerns: [C-001]
+    quality_flag: conflicts-anti-goal
+
+  - id: NFR-008
+    title: "Local-LLM tool-use rate (≥N corpus.find calls per 100 llama queries — absolute)"
+    description: |
+      Ollama-served llama3/qwen3 with corpus MCP attached invokes corpus.find ≥N times per
+      100 knowledge-grounded queries. ABSOLUTE target (CF-3 from Stage 1 handoff —
+      explicitly NOT relative-to-cloud-baseline; PM-Review confirmed C-006 invalid).
+      N to be set at Plan stage from Validate spike data. AG-004 → should-priority.
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: usability
+    quantitative_targets:
+      - metric: corpus_find_invocations_per_100_local_llm_queries
+        value: null
+        unit: count
+        test_method: 100-query benchmark run through Ollama-served model with MCP corpus server attached; count corpus.find tool invocations; absolute floor set at Plan stage from Validate spike data — MUST NOT reference cloud baseline
+    dependencies: [FR-023]
+    source_opportunity: OPP-006
+    source_concerns: [C-009]
+    quality_flag: conflicts-anti-goal
+
+  - id: NFR-009
+    title: "Classifier wall-clock per document on target hardware (Research-baselined)"
+    description: |
+      Classifier (FR-012) completes per document within wall-clock budget on target
+      hardware (M-series Mac 32GB) so ingest doesn't feel like background tax. Baseline:
+      Qwen 2.5 7B Q4_K_M ~25-35 tok/s; ~150-token classification JSON ≈ 5s/doc → ~12
+      docs/min single-stream, ≥30 docs/min with batch concurrency=2. Source: Stage 2 Research.
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: performance
+    quantitative_targets:
+      - metric: classifier_wall_clock_per_doc_p95_single_stream
+        value: 5000
+        unit: ms
+        test_method: 100-doc benchmark of varying length on target hardware; Qwen 2.5 7B Q4_K_M via Ollama; measure wall-clock per doc
+      - metric: classifier_throughput_with_concurrency_2
+        value: 30
+        unit: docs_per_minute
+        test_method: same benchmark with Ollama OLLAMA_NUM_PARALLEL=2
+    dependencies: [FR-012]
+    source_opportunity: OPP-003
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-010
+    title: "Index is a single SQLite file"
+    description: |
+      Retrieval index stored in single SQLite file (whitepaper architectural commitment).
+      Backup, copy, move operations are file-level requiring no service coordination.
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: maintainability
+    quantitative_targets:
+      - metric: index_storage_files
+        value: 1
+        unit: count
+        test_method: ls of index directory after full ingest+index of 100-doc benchmark
+    dependencies: [FR-015]
+    source_opportunity: OPP-005
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-011
+    title: "Pipeline observability via structured event log"
+    description: |
+      Each pipeline stage transition emits structured log event (doc id, stage, outcome,
+      duration, timestamp). Append-only, inspectable from CLI without external observability
+      stack.
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: observability
+    quantitative_targets:
+      - metric: log_event_per_stage_transition
+        value: 1
+        unit: events_per_transition
+        test_method: 50-doc ingest run; assert one event per stage per doc per outcome
+    dependencies: [FR-016b]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-016
+    title: "Telemetry surface ≥ 6 named event classes (Research-baselined)"
+    description: |
+      Telemetry layer emits ≥6 event classes to rotating local NDJSON log: query.executed,
+      ingest.completed, classification.failed, egress.blocked, index.rebuilt, mcp.tool_invoked.
+      Exposed via MCP resource for inspection. Zero outbound HTTP from telemetry layer
+      (subject to NFR-001 + NFR-002). Source: Stage 2 Research.
+    priority: should
+    category: nonfunctional
+    nfr_subcategory: observability
+    quantitative_targets:
+      - metric: telemetry_event_classes_emitted
+        value: 6
+        unit: classes
+        test_method: integration suite asserts each event class appears with required fields; verify zero outbound HTTP from telemetry layer
+    dependencies: [NFR-001]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  # ═══════════════════════════════════════════════════════════════════
+  # NICE-TO-HAVE
+  # ═══════════════════════════════════════════════════════════════════
+
+  - id: FR-024
+    title: "Inbox supports email/inbox-watcher source in addition to file drop and URL"
+    description: |
+      Configurable inbox source pulls from local mail-folder or other inbox-style source.
+      Pulled docs enter same validation gate and pipeline as file drops.
+    priority: nice
+    category: solution
+    dependencies: [FR-010]
+    source_opportunity: OPP-008
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-025
+    title: "Knowledge-graph edges between documents are visible via a corpus.related tool"
+    description: |
+      Second MCP tool corpus.related returns documents adjacent to a given doc via
+      knowledge-graph edges already used by FR-003. Useful for follow-up navigation.
+    priority: nice
+    category: solution
+    dependencies: [FR-003, FR-008]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: FR-026
+    title: "User can mark a corpus.find result as accepted or rejected to inform future ranking"
+    description: |
+      Lightweight feedback channel (CLI or agent-mediated) lets user mark returned SearchHit
+      as useful or not. Logged to feedback ledger; future ranking MAY use as signal but
+      not required to. Hooks into M-001 north-star but acceptance is not required to be
+      machine-captured in v1.
+    priority: nice
+    category: stakeholder
+    dependencies: [FR-002]
+    source_opportunity: OPP-001
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-012
+    title: "Classifier marginal cost per document is zero on user hardware"
+    description: |
+      Classifier (FR-012) runs entirely on user hardware with no paid-API call —
+      marginal cost per ingested doc = 0. Implied by NFR-001/002 + FR-012 architecture;
+      surfaced explicitly for traceability to A-005.
+    priority: nice
+    category: nonfunctional
+    nfr_subcategory: maintainability
+    quantitative_targets:
+      - metric: paid_api_calls_per_ingest
+        value: 0
+        unit: calls
+        test_method: code-path inspection + runtime audit during 100-doc benchmark
+    dependencies: [NFR-001, NFR-002, FR-012]
+    source_opportunity: OPP-003
+    source_concerns: []
+    quality_flag: null
+
+  - id: NFR-013
+    title: "Auto-proposed taxonomy growth feels like enrichment, not noise (qualitative)"
+    description: |
+      After 30 days of v1 use, user reflects on whether auto-proposed-and-promoted domains
+      felt like meaningful enrichment vs noise. Qualitative interview test (A-011, desirability).
+    priority: nice
+    category: nonfunctional
+    nfr_subcategory: usability
+    quantitative_targets:
+      - metric: user_reported_taxonomy_growth_satisfaction
+        value: enrichment
+        unit: qualitative_label
+        test_method: 30-day-use reflection interview with Shon; label as enrichment | mixed | noise
+    dependencies: [FR-019]
+    source_opportunity: OPP-007
+    source_concerns: []
+    quality_flag: null
+
+# ═══════════════════════════════════════════════════════════════════
+# OUT-OF-SCOPE (anti-goal-derived)
+# ═══════════════════════════════════════════════════════════════════
+
+out_of_scope:
+  - id: OOS-001
+    item: "Human-facing UI for browsing the corpus"
+    rationale: "AG-001 (no human-facing UI for browsing, editing, or chatting with documents)"
+    revisit_at: "post-v1 + 90 days"
+    source: ANTI-GOALS.md
+  - id: OOS-002
+    item: "Human-facing UI for editing document frontmatter"
+    rationale: "AG-001 (frontmatter editing happens via user's text editor on underlying Markdown file)"
+    revisit_at: "post-v1 + 90 days"
+    source: ANTI-GOALS.md
+  - id: OOS-003
+    item: "Chat interface to converse with documents directly"
+    rationale: "AG-001 (the agent IS the UI; chat surface duplicates NotebookLM/AnythingLLM)"
+    revisit_at: "post-v1 + 90 days"
+    source: ANTI-GOALS.md
+  - id: OOS-004
+    item: "Failure-lane triage UI"
+    rationale: "AG-001 (failure lane is structured-data + agent-mediated per FR-018+NFR-006)"
+    revisit_at: "post-v1 + 90 days"
+    source: ANTI-GOALS.md
+  - id: OOS-005
+    item: "LLM-generated summaries written into the canonical document store"
+    rationale: "AG-002 (no LLM-generated/rewritten content; user is authority on document content)"
+    revisit_at: "v2"
+    source: ANTI-GOALS.md
+  - id: OOS-006
+    item: "LLM-rewritten / cleaned-up versions of ingested documents replacing originals"
+    rationale: "AG-002 (LLM is classifier and retrieval target, not compiler — Karpathy LLM Wiki contrast)"
+    revisit_at: "v2"
+    source: ANTI-GOALS.md
+  - id: OOS-007
+    item: "Synthesized literature reviews stored in canonical corpus"
+    rationale: "AG-002 (if generative-content workflow emerges, separate synthesis/ namespace with origin: ai-generated frontmatter)"
+    revisit_at: "v2"
+    source: ANTI-GOALS.md
+  - id: OOS-008
+    item: "Conversation memory / agent-side personality state"
+    rationale: "AG-003 (memory = personality problem; corpus = experience problem; different objects, different lifecycles)"
+    revisit_at: "never"
+    source: ANTI-GOALS.md
+  - id: OOS-009
+    item: "SaaS connectors (Gmail, Slack, Notion, Drive)"
+    rationale: "AG-003 (SaaS connectors belong to Danswer/Onyx-class enterprise search)"
+    revisit_at: "never"
+    source: ANTI-GOALS.md
+  - id: OOS-010
+    item: "Multi-user / team-shared corpus"
+    rationale: "AG-003 (single-machine, single-user model; multi-user belongs to enterprise search)"
+    revisit_at: "never"
+    source: ANTI-GOALS.md
+  - id: OOS-011
+    item: "Cross-agent USER-validated capability claim in v1 (Gemini CLI/Codex CLI/Ollama)"
+    rationale: "AG-004 (cross-agent is portability property of MCP protocol, not user-validated capability of v1; FR-022, FR-023, NFR-007, NFR-008 ship as should-priority portability surfaces only)"
+    revisit_at: "post-v1"
+    source: ANTI-GOALS.md
+  - id: OOS-012
+    item: "50-query labeled retrieval evaluation harness"
+    rationale: "AG-005 (formal retrieval eval deferred to v1.5+; v1 ships with M-001 queries-per-week + acceptance as north-star surrogate)"
+    revisit_at: "v1.5"
+    source: ANTI-GOALS.md
+
+# ═══════════════════════════════════════════════════════════════════
+# OPEN QUESTIONS (Architect-surfaced; routed to questions.jsonl)
+# ═══════════════════════════════════════════════════════════════════
+
+open_questions:
+  - id: Q-001
+    question: |
+      What is the absolute floor for NFR-008 (corpus.find invocations per 100 local-LLM
+      queries)? Per CF-3 the target is absolute (not relative to cloud baseline), but
+      actual number must come from Validate-stage spike data on Ollama+MCP integration.
+    blocking: [NFR-008]
+  - id: Q-002
+    question: |
+      What is the adoption threshold N for FR-019 (proposed → established taxonomy
+      promotion)? Mechanism is required but specific N depends on A-010 spike results
+      (false-promotion rate at varying N on noisy 200-doc simulation).
+    blocking: [FR-019]
+  - id: Q-003
+    question: |
+      Does FR-020 (URL inbox source) require URL-fetch adapter to live in separately-linted
+      package so NFR-001 can scope-exempt it cleanly? Or does lint rule support per-file
+      allowlist annotations? Architectural decision for Plan-stage ADR.
+    blocking: [FR-020, NFR-001]
+  - id: Q-004
+    question: |
+      What MIME types / file extensions does FR-010's validation gate accept in v1?
+      Whitepaper implies PDF, Markdown, plain text, HTML; MEDIA-INGESTION-SPEC may extend.
+      Plan stage to finalize allowlist.
+    blocking: [FR-010, FR-011]
+  - id: Q-005
+    question: |
+      Does manifest resource (FR-005) include corpus-wide statistics like total token
+      count or last-classifier-model used? Useful for agent freshness reasoning but adds
+      surface area. Plan stage decides minimal manifest schema.
+    blocking: [FR-005]
+
+# Counts (orchestrator-computed)
+# must = 26 (was 24 from Architect; +1 split FR-016a/b net +1 = 25 must wait let me recount)
+# Recount: FR-001..009 (9) + FR-010..018 with FR-016 split (10: FR-010, 011, 012, 013, 014, 015, 016a, 016b, 017, 018)
+#        + UR-001..003 (3) + TR-001, 002 (2) + NFR-001..006 + NFR-014, 015 (8) = 32 must
+# should = FR-019..023 (5) + UR-004, 005 (2) + NFR-007..011 + NFR-016 (6) = 13 should
+# nice = FR-024..026 (3) + NFR-012, 013 (2) = 5 nice
+# total = 32 + 13 + 5 = 50 candidates (within deep-tier 30-50 target ✓)

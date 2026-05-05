@@ -1,0 +1,70 @@
+---
+artifact: HANDOFF
+project_slug: llm-corpus
+stage: 5-build-test
+from_stage: 5-build-test
+to_stage: build-ready-terminal-gate
+charter_ref: ../CHARTER.md
+charter_sha256: e88c35cf18803a93574b6637000d7abcfe42f28e49422147c6553dc7d2c8b045
+template_version: 3.0.0
+generated: 2026-04-26T22:35:00Z
+generated_by: ProductDevelopment Skill v1.0
+tier: deep
+size_budget_bytes: 3072
+size_budget_mode: soft_warn
+ledger_snapshot:
+  decisions: 18 total (D-001..D-018); D-017 = handoff-builder validator extension; D-018 = PM-Review redirect (build-env + sprint-ledger are ProductBuild contracts)
+  concerns: 41 distinct ids (latest-event wins); 0 open high-severity without mitigation; 17 carry-forward to ProductBuild
+  questions: 5 (Q-001..Q-005 all answered; 0 blocking)
+gate_status: passed
+gate_decision: conditional_go (per-stage Council) → reframed go via D-018 PM-Review redirect
+gate_decision_recorded_at: 2026-04-26T22:30:00Z
+gate_decided_by: Shon (PM-Review)
+kill_criteria_triggered: none
+generator_evaluator_separation: enforced (TEST-PLAN authored by primary opus; RedTeam/Council on sonnet-4-6 — Panickssery/Bowman/He 2024)
+test_plan_coverage_must: 32/32
+test_plan_negative_coverage: 24/32 (5 must-haves rely on positive-only scenarios; logged as medium concern, non-blocking)
+risk_register_open_high_without_mitigation: 0
+build_ready_dry_run_exit_code: 0
+build_ready_must_meet_pass: 9/9
+build_ready_should_meet_pass: 3/3
+contract_guarantees_v3_18_pass: 5/5
+artifacts_produced:
+  - ./TEST-PLAN.md (56 test cases; 100% must-have coverage; 24 negatives + 4 adversary closures for C-018/019/020 + NFR-002 + NFR-006)
+  - ./RISK-REGISTER.yaml (auto-derived; 41 eligible; 17 carry-forward; 0 blockers)
+  - ./PROD-READINESS-REVIEW.md (composite 95/100 green; both gates dry-pass)
+  - ./handoffs/stage-5-to-build.yaml (this file)
+next_stage_focus:
+  - "handoff-builder.ts build mode emits HANDOFF-TO-BUILD.yaml after terminal Council confirms go"
+  - "Post-write validation: re-check 5/5 v3 §18 contract guarantees against the emitted manifest"
+  - "ProductBuild not installed; report manifest path; Stage 5 closes"
+  - "C-034 (build_environment.yaml) + C-035 (sprint-ledger.jsonl) carry forward as ProductBuild-owned per D-018"
+  - "C-040 NFR-008 vacuous Then is should-priority, out of must-have build_scope; ProductBuild visibility only"
+---
+
+## Stage 5 Build/Test summary
+
+Stage 5 produced four required artifacts plus one tool fix. RedTeam preflight
+(sonnet, cross-model from opus generator) surfaced 2 real findings (C-039
+stale-status drift on C-018/019/020 — flipped to mitigated; C-040 vacuous
+NFR-008 should-priority scenario — non-blocking). 4-perspective per-stage
+Council (sonnet) voted conditional_go: 2 blocking on SP-001 preconditions
+(C-034, C-036 — the latter already closed by D-016 path (b)), 2 logged-only
+(C-035, C-037).
+
+PM-Review (Shon) approved with redirect: per v3 §19 "filesystem is the
+protocol" boundary, build_environment.yaml + sprint-ledger.jsonl are
+ProductBuild-owned execution-environment / progress-recording contracts;
+ProductDevelopment delivers requirements + tests + roadmap, not
+infrastructure recipes. Both C-034 and C-035 carry forward to ProductBuild
+with reframed mitigation per D-018.
+
+Build-Ready terminal gate enters with: 9/9 must_meet pass, 3/3 should_meet
+pass, 5/5 v3 §18 contract guarantees pass, charter SHA verified.
+
+Per terminal-gate `mode: hard`, the Council vote on the terminal gate must
+be go | kill | hold | recycle (no conditional_go). Stage 5 closes when
+HANDOFF-TO-BUILD.yaml emits successfully and post-write validation passes.
+
+---
+*Charter: [`../CHARTER.md`](../CHARTER.md). Ledgers (18 D / 41 C / 5 Q). ADRs: [`../ADRs/`](../ADRs/).*

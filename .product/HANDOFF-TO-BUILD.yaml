@@ -1,0 +1,109 @@
+schema_version: 1.0.0
+handoff_generated: 2026-04-27T05:55:04.741Z
+from_skill: ProductDevelopment@3.0.0
+to_skill: pending
+
+project:
+  slug: llm-corpus
+  charter_path: ./CHARTER.md
+  charter_sha256: "e88c35cf18803a93574b6637000d7abcfe42f28e49422147c6553dc7d2c8b045"
+
+artifacts:
+  required:
+    - path: ./CHARTER.md
+      type: charter
+      status: present
+    - path: ./REQUIREMENTS.yaml
+      type: requirements
+      status: present
+      counts: {must: 32, should: 13, nice: 5}
+    - path: ./ACCEPTANCE-CRITERIA.feature
+      type: gherkin
+      status: present
+      scenario_count: 128
+    - path: ./ROADMAP.yaml
+      type: roadmap
+      status: present
+    - path: ./ADRs/
+      type: adr_directory
+      status: present
+      accepted_count: 8
+      proposed_count: 0
+  optional:
+    - path: ./FEASIBILITY-STUDY.md
+      status: present
+    - path: ./ASSUMPTION-MAP.yaml
+      status: present
+
+build_scope:
+  horizon: now
+  sprint_refs: []
+  requirement_ids: [UR-001, UR-002, UR-003, FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016a, FR-016b, FR-017, FR-018, TR-001, TR-002, NFR-001, NFR-002, NFR-003, NFR-004, NFR-005, NFR-006, NFR-014, NFR-015]
+  success_criteria: "All Gherkin scenarios for must-have requirements pass"
+  not_in_scope: [UR-004, UR-005, FR-019, FR-020, FR-021, FR-022, FR-023, NFR-007, NFR-008, NFR-009, NFR-010, NFR-011, NFR-016, FR-026, FR-024, FR-025, NFR-012, NFR-013, OOS-001, OOS-002, OOS-003, OOS-004, OOS-005, OOS-006, OOS-007, OOS-008, OOS-009, OOS-010, OOS-011, OOS-012, Q-001, Q-002, Q-003, Q-004, Q-005]
+
+inviolable_decisions:
+  - D-007: "PM-Review approved at 2026-04-27 with fix-before-handoff path: 11 should-have ACs authored, 5 high-severity QATester findings (F-1, F-6, F-12, F-13, F-15) closed inline, NFR-002 always-on scenario added. 3 high-severity findings (F-5, F-8, F-10) deferred to Validate stage as C-018/019/020."
+  - D-014: "PIVOT-OR-PERSEVERE: persevere — proceed to Stage 4 Plan with current scope."
+  - D-015: "PIVOT-OR-PERSEVERE: persevere — proceed to Stage 4 Plan with conditional_go conditions C-028..C-031 carry-forward and BLOCK-02 reconciled inline."
+  - D-016: "PM-Review accepted ADR-001..ADR-008 (all 8 ADRs status: proposed → accepted) and chose path (b) firewall provisioning for C-036 closure: TR-001 install side-effect provisions OS-level firewall rule (pf on macOS, iptables on Linux); SP-007 exit criterion verifies rule active post-install. ADR-001 Decision section updated inline; SP-001 exit gains build_native_addon_allowlist_check criterion; SP-007 exit gains os_firewall_rule_provisioned + uninstall_reverses_firewall criteria."
+  - D-017: "Stage 5 surgical fix: extend handoff-builder.ts gherkinScenariosFor() to recognize Feature-level '# Covers requirements:' comment convention used by Stage 2's ACCEPTANCE-CRITERIA.feature generator"
+  - D-018: "PM-Review at Stage 5 per-stage gate: APPROVED WITH REDIRECT. Council's blocking objections cite C-034 (build_environment.yaml) and C-035 (sprint-ledger.jsonl schema). Per Shon: 'these are contracts the development team — the yet-to-be-built ProductBuild skill, the primary consumer — should be responsible for shaping. Then delivered and integrated for use by ProductDevelopment at a later time, if appropriate.' These artifacts are ProductBuild-owned per v3 §19 'filesystem is the protocol' boundary; ProductDevelopment does not pre-shape ProductBuild's execution environment."
+  - D-019: "Stage 5 second surgical fix: handoff-builder.ts renderHandoff() now applies latest-event-wins merge for concerns.jsonl entries, so status_update events properly override the original status/mitigation/owner before carry_forward filtering. Preserves original claim/severity/kind. Fixes stale carry-forward entries for C-018/019/020/032/036 in HANDOFF-TO-BUILD.yaml."
+
+negotiable_decisions:
+  - D-001: "Drop Designer agent from Stage 2 capability set; keep Council pre-gate."
+  - D-002: "Split FR-016 (idempotent + resumable) into FR-016a + FR-016b per Splitting Test independent failure rule."
+  - D-003: "All cross-agent capabilities (FR-022, FR-023, NFR-007, NFR-008) ship as priority:should with quality_flag:conflicts-anti-goal — never priority:must per AG-004 enforcement."
+  - D-004: "NFR-002 runtime egress audit recommendation = in-process Node hook (undici dispatcher + net.Socket patch) + OS-level pf/iptables defense-in-depth on MCP server UID; eBPF skipped for v1."
+  - D-005: "NFR-003 corpus.find p95 latency budget set at 250ms (was 1000ms in Architect candidate); p50 at 100ms."
+  - D-006: "NFR-008 (local-LLM tool-use rate) target value left null in Stage 2; Plan stage cannot finalize until Validate spike on Ollama+MCP integration produces absolute floor."
+  - D-008: "FR-019 dynamic-taxonomy promotion threshold N=5 (default, user-configurable via corpus config taxonomy.promotion_threshold)."
+  - D-009: "FR-017 content-hash idempotency MUST use full-file SHA-256 (not first-4KB or other partial-file hash)."
+  - D-010: "FR-016a + FR-015 implementation MUST use SQLite UPSERT (INSERT ... ON CONFLICT) on per-stage checkpoint tables (unique constraint on (doc_id, stage)) and on index doc_id column."
+  - D-011: "FR-010 validation gate MUST run MIME-sniff (via file-type npm package) AFTER extension-allowlist check; mismatch routes to failure lane with error_code mime_mismatch."
+  - D-012: "NFR-008 absolute floor provisional value N=20 (corpus.find invocations per 100 mixed queries) for Plan-stage roadmap; FINAL value to be set by Stage 5 pilot run with FR-009 prompt template."
+  - D-013: "NFR-002 runtime egress hook implementation = in-process Node module-load patches on net.Socket.connect, undici Dispatcher, dgram.send, dns.lookup, http2.connect, tls.connect; ~80 lines total."
+
+carry_forward_concerns:
+  - C-001: {kind: risk, severity: medium, mitigation: null, owner: ProductBuild}
+  - C-017: {kind: risk, severity: medium, mitigation: "Carry-forward: add scenario in Stage 5 pre-build enumerating required error_code values (query_required, invalid_filter, ranking_signal_unavailable, document_not_found, index_locked, server_initializing).", owner: ProductBuild}
+  - C-021: {kind: risk, severity: medium, mitigation: "Carry-forward: address in Validate or Build/Test stage scenario refinements — each is non-blocking individually but worth tracking.", owner: ProductBuild}
+  - C-022: {kind: risk, severity: medium, mitigation: "Validate stage spike on Ollama+MCP integration MUST produce the absolute floor before Plan stage finalizes NFR-008.", owner: ProductBuild}
+  - C-024: {kind: assumption, severity: medium, mitigation: "Stage 5 pilot run produces final N. If <20, escalate to PM-Review for NFR-008 either downgrade or product-side intervention (better prompt template).", owner: ProductBuild}
+  - C-025: {kind: risk, severity: medium, mitigation: "NFR-004 100% benchmark per shipped model version; CI runs benchmark on each supported model before release.", owner: ProductBuild}
+  - C-026: {kind: risk, severity: medium, mitigation: "NFR-003 explicit hard ceiling at 50k; warning at 25k via corpus.health resource (FR-021); sqlite-vec ANN index on roadmap monitoring.", owner: ProductBuild}
+  - C-027: {kind: risk, severity: high, mitigation: "Re-invoke Council on claude-sonnet-4-6 via Agent(model=sonnet); rebuild PM-Review summary with new Council recommendation; supersede prior pm-review-history entry for stage_from=3-validate. Root cause logged: imagined time pressure caused prior agent to bypass model separation.", owner: ProductBuild}
+  - C-028: {kind: risk, severity: high, mitigation: "Stage 4 Plan must add Week-1 engagement-proxy gate to Stage 5 build-test pilot: ≥5 corpus.find queries in first 7 days of dogfooding + ≥1 acceptance event before Stage 6 gate opens. Converts 30-day post-ship A-002 black box into a Stage-5-gated kill signal.", owner: ProductBuild}
+  - C-029: {kind: risk, severity: high, mitigation: "Stage 4 Plan must (1) add tcpdump-verified integration test as Stage 5 build-ready gate condition, including synthetic Worker thread + child_process egress attempts, (2) document Worker/child_process/native-addon coverage gaps explicitly in D-013 amendment or new ADR, (3) revise D-013 reversibility from medium to low, (4) ensure hook also fires on import-time side-effect egress (not just runtime call-time).", owner: ProductBuild}
+  - C-030: {kind: risk, severity: high, mitigation: "Stage 4 Plan ROADMAP must include a named NFR-008 pre-build pilot sprint BEFORE main build sprint with: (a) FR-009 prompt template authored and version-controlled, (b) 100-query benchmark on BOTH Llama 3.1 8B Instruct and Qwen 2.5 7B Instruct via live Ollama+MCP, (c) ≥2 prompt-variant iteration cycles if first run <N=25, (d) hard gate: if no variant achieves ≥20 on either model after 2 iterations, NFR-008 downgrades to nice_to_have BEFORE sprint 1 build, not after.", owner: ProductBuild}
+  - C-031: {kind: risk, severity: medium, mitigation: "Stage 5 build-test plan MUST include real spike re-runs as build-ready conditions: actual 100-doc Ollama benchmark for SP-001/A-004, tcpdump test for SP-002 (subsumed by C-029), file-type benchmark on 50-file mixed corpus for SP-003, SQLite UPSERT race harness on parallel writers for SP-004, BERTopic N-parameter sweep on synthetic noisy corpus for SP-005. Status of these assumptions remains 'valid (carry-forward)' with confidence:medium until real evidence lands.", owner: ProductBuild}
+  - C-033: {kind: risk, severity: high, mitigation: "Stage 5 SP-003 entry condition: add 3 Gherkin scenarios (@adversary @f-5, @adversary @f-8, @adversary @f-10) to ACCEPTANCE-CRITERIA.feature BEFORE SP-003 entry — written at SP-001 close or earlier. Update frontmatter scenarios_total from 99 to actual (128+3=131).", owner: ProductBuild}
+  - C-034: {kind: risk, severity: high, mitigation: "Reframed by D-018: build_environment.yaml is a ProductBuild-owned execution-environment contract, not a ProductDevelopment artifact. Carries forward to ProductBuild for shaping; ProductBuild defines its own tcpdump CAP_NET_RAW recipe (setcap path, Docker --cap-add NET_RAW path, or CI runner strategy) when it implements SP-001. ProductDevelopment delivers requirements + tests + roadmap, not infrastructure recipes.", owner: ProductBuild}
+  - C-035: {kind: risk, severity: medium, mitigation: "Reframed by D-018: sprint-ledger.jsonl is a ProductBuild-owned progress-recording contract, not a ProductDevelopment artifact. ProductBuild may implement sprint completion as sprint-ledger.jsonl OR reuse pm-review-history.jsonl + execution-journal.jsonl OR define its own schema. ProductDevelopment delivers SPRINT-PLAN.yaml entry/exit criteria; ProductBuild owns the progress-journaling format.", owner: ProductBuild}
+  - C-037: {kind: risk, severity: medium, mitigation: "Add informal SP-005.5 dogfood checkpoint after SP-005 (corpus.find available) and before SP-006 (storage layer locks): Shon runs ≥10 real corpus.find queries against actual documents, results journaled. Counts toward SP-008 7-day window if instrumented through NFR-016 telemetry. De-risks SP-008 cliff without adding a sprint.", owner: ProductBuild}
+  - C-040: {kind: risk, severity: medium, mitigation: "NFR-008 is priority=should and out of must-have TEST-PLAN scope, so does NOT block Build-Ready. SP-000 pre-build pilot per ADR-005 binds floor to a concrete integer (provisionally N=20 per D-012). Post-pilot, Stage 2 owner can amend the scenario to reference D-012 or hard-code the resolved floor. Tracked here for ProductBuild visibility.", owner: ProductBuild}
+  - C-041: {kind: risk, severity: medium, mitigation: "Per-stage gate.yaml on_conditional_go: conditions append to concerns.jsonl (this entry). C-034 + C-035 + C-037 already tracked with mitigations. C-036 closure (D-016 path (b)) was post-Council; surface to PM-Review for confirmation. C-034 closure is a SP-001 entry-criterion not a Stage 5 build-ready blocker. PM-Review at terminal gate decides go/recycle/kill/hold (conditional_go forbidden per v3 §9 line 276).", owner: ProductBuild}
+  - C-042: {kind: risk, severity: low, mitigation: "Tool-side drift between two ProductDevelopment validators. Not a Build-Ready blocker (contract guarantees are what v3 §18 specifies; markdown wrapping isn't). Future surgical fix: either (a) update handoff-builder.ts to wrap output in '---' delimiters with a one-line synthetic heading, or (b) update frontmatter.ts validate to accept pure YAML files with .yaml extension as 'frontmatter is the whole document'. Logged for ProductBuild visibility — ProductBuild consumes the file as YAML, which is contractually correct.", owner: ProductBuild}
+
+resolved_questions: [Q-001, Q-002, Q-003, Q-004, Q-005]
+
+open_questions:
+  []
+
+opportunity_to_build_mapping:
+  []
+
+recommended_evaluator_model: claude-sonnet-4-6
+
+validation:
+  build_ready_gate_passed: true
+  gate_decision: go
+  pm_approval_timestamp: 2026-04-27T05:55:04.741Z
+  pm_approval_note: "Auto-generated by handoff-builder; PM-Review required before downstream consumption."
+
+write_back_contracts:
+  - new_concerns_append_to: ./ledgers/concerns.jsonl
+  - new_questions_append_to: ./ledgers/questions.jsonl
+  - decisions_require: "PM-Review before appending to decisions.jsonl"
+  - execution_journal: ./execution-journal.jsonl

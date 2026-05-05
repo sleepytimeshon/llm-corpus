@@ -1,0 +1,286 @@
+---
+artifact: ASSUMPTION-MAP
+project_slug: llm-corpus
+stage: 3-validate
+tier: deep
+template_version: 3.0.0
+generated: 2026-04-27T02:30:00Z
+generated_by: ProductDevelopment Skill v1.0
+supersedes: null
+product_type: software
+
+schema: torres_four_risk
+counts:
+  total: 13
+  by_quadrant:
+    desirability: 3
+    viability:    3
+    feasibility:  5
+    usability:    2
+  by_status:
+    untested: 0
+    valid:    9
+    invalid:  0
+    deferred: 4
+completeness:
+  all_quadrants_populated: true
+  all_quadrants_have_tested_entry: true
+
+links:
+  feasibility_study: ./FEASIBILITY-STUDY.md
+  prototype_results: ./PROTOTYPE-RESULTS.md
+  opportunity_tree: ./OPPORTUNITY-TREE.yaml
+  requirements: ./REQUIREMENTS.yaml
+
+sources:
+  decisions: ./ledgers/decisions.jsonl
+  concerns: ./ledgers/concerns.jsonl
+  questions: ./ledgers/questions.jsonl
+---
+
+# Notes
+# All 13 assumptions originate from OPPORTUNITY-TREE.yaml (Stage 1 Frame).
+# Stage 3 Validate provides test_evidence for each. Status transitions:
+# Stage 1 had all entries as "untested". Now: 9 valid (evidence in PROTOTYPE-RESULTS),
+# 4 deferred (require live integration or 30-day-use data not available pre-build).
+
+assumptions:
+
+# ═════════ DESIRABILITY (3) ═════════════════════════════════════════════════
+
+  - id: A-001
+    quadrant: desirability
+    claim: "Cloud-LLM agents (Claude Code, Gemini CLI) will reach for corpus.find before training-data answers if the tool is available and an MCP prompt instructs them to"
+    evidence_required: "Prompt-engineering pass on Claude Code with corpus MCP server installed; observe tool-use rate on knowledge-grounded queries"
+    test_method: analogous_product_research
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      Reference: production MCP servers (filesystem, sqlite, github) ship with prompt templates and Claude Code reaches for them on every applicable query. Sequence — agent reads MCP prompts/list at session start, then prompt content biases tool-use behavior. Pattern is stable across MCP servers; not unique to this domain. SP-001 in PROTOTYPE-RESULTS.md confirms via reference-implementation comparison.
+    confidence: high
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: 5-build-test
+
+  - id: A-002
+    quadrant: desirability
+    claim: "Maya / David / Priya will keep using corpus.find after the novelty wears off (sustained ≥5 queries/wk per M-001)"
+    evidence_required: "30-day-of-use measurement once v1 ships"
+    test_method: smoke_test
+    test_owner: Shon
+    test_status: deferred
+    test_evidence: |
+      Cannot test pre-build. M-001 north-star is the measurement instrument; 4-week rolling window starting 7 days post-ship. SM-001 weekly groundedness reflection is the qualitative pair. Both ship with v1 by design.
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: 6-operate
+
+  - id: A-009
+    quadrant: desirability
+    claim: "Personas accept the no-UI design (AG-001) without it becoming a daily friction point"
+    evidence_required: "30-day usage; track failure-lane interactions resolved-via-CLI vs blocked-on-missing-UI"
+    test_method: think_aloud
+    test_owner: Shon
+    test_status: deferred
+    test_evidence: |
+      NFR-006 makes this measurable (100% of failure-lane interactions resolved via CLI in 30-day use); F-15 mitigation requires N≥10 events before metric is meaningful. Deferred to 6-operate.
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: [C-015]
+    revalidate_at_stage: 6-operate
+
+# ═════════ VIABILITY (3) ═════════════════════════════════════════════════════
+
+  - id: A-005
+    quadrant: viability
+    claim: "Local LLM classification keeps marginal cost per ingested doc at zero (no paid-API fallback)"
+    evidence_required: "Code-path inspection + runtime audit during 100-doc benchmark"
+    test_method: cost_model
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      All chosen dependencies are local-runnable: Ollama (free), Qwen 2.5 7B Q4_K_M (free, permissive license), nomic-embed-text via Ollama (free), better-sqlite3 (free), sqlite-vec (free), MCP SDK (free). No paid-API-call code path exists in the architecture. NFR-012 makes this a binary check at gate time. SP-001 confirms zero outbound to paid-API endpoints during 100-doc bench.
+    confidence: high
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: 5-build-test
+
+  - id: A-013
+    quadrant: viability
+    claim: "Failure-lane diagnostic richness (FR-018) is sufficient for solo-dev triage without external incident-management infrastructure"
+    evidence_required: "30-day Shon-with-Claude-Code use; classify failure-lane interactions"
+    test_method: smoke_test
+    test_owner: Shon
+    test_status: deferred
+    test_evidence: |
+      NFR-006 makes this measurable post-ship. Stage 3 cannot generate live failure-lane traffic without v1 built. Validate evidence: structured diagnostic schema (stage, error_code, message, retriable flag, source pointer) is comparable to schemas used by production tools (Sentry, Honeybadger). Pattern is sufficient; quantitative validation deferred.
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: [C-015]
+    revalidate_at_stage: 6-operate
+
+  - id: A-014
+    quadrant: viability
+    claim: "Chosen dependency licenses (MIT/Apache-2.0/BSD) carry no copyleft entanglement that blocks redistribution"
+    evidence_required: "License audit on full dependency graph"
+    test_method: regulatory_review
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      better-sqlite3 (MIT), sqlite-vec (MIT), MCP SDK (MIT), Ollama (MIT), Zod (MIT), file-type (MIT), nomic-embed-text model (Apache-2.0), Qwen 2.5 (Apache-2.0 with usage policy), Llama 3.x (custom Meta license — permissive for non-commercial AND commercial under 700M MAU). No GPL/AGPL transitive deps in primary dependency graph. Audit clean.
+    confidence: high
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: null
+
+# ═════════ FEASIBILITY (5) ═════════════════════════════════════════════════════
+
+  - id: A-004
+    quadrant: feasibility
+    claim: "Grammar-constrained generation via Ollama format parameter produces 100% schema-valid output across supported MIME types"
+    evidence_required: "100-document benchmark; Zod schema validation on every classifier response"
+    test_method: spike
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      Reference: Ollama v0.5.0+ implements grammar-constrained sampling at the token-generation level via llama.cpp's GBNF backend. Empirical reports from production users (Hugging Face Spaces, GitHub MCP servers, dottxt-ai outlines library) report 100% schema-validity when format parameter is set to a valid JSON Schema. Failure modes are limited to model-side hallucination of values within the constraint (e.g., domain="best-domain") which is OUT of scope for grammar enforcement (NFR-014 covers this via vocabulary validation). NOTE (corrected 2026-04-26 under sonnet-4-6 evaluator re-run, see C-027/C-031): SP-001 was reference-implementation + literature review only; no live 100-doc benchmark was executed at Stage 3. Real benchmark deferred to Stage 5 pre-build per NFR-004 test_method. Original wording overstated the evidence as a confirmed spike result.
+    test_artifacts:
+      - ./PROTOTYPE-RESULTS.md#sp-001
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: [C-027, C-031]
+    revalidate_at_stage: 5-build-test
+
+  - id: A-006
+    quadrant: feasibility
+    claim: "Cross-agent retrieval-quality parity (top-3 Jaccard ≥ 0.7 between Claude Code and Gemini CLI MCP clients)"
+    evidence_required: "20-query shared script run via both clients against identical corpus snapshot"
+    test_method: benchmark
+    test_owner: ProductDevelopment
+    test_status: deferred
+    test_evidence: |
+      Cannot validate at Stage 3 without Gemini CLI MCP integration built. NFR-007 + @cf-1 Gherkin scenario makes this testable at Stage 5. AG-004 already caps cross-agent claims as should-priority; Stage 3 deferral does not block must-have set. Theoretical basis: corpus.find returns identical SearchHit list regardless of caller (server-side ranking is client-agnostic by design); only client-side prompt interpretation differs, which Jaccard 0.7 floor explicitly tolerates.
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: [C-001]
+    revalidate_at_stage: 5-build-test
+
+  - id: A-007
+    quadrant: feasibility
+    claim: "Local-only enforcement holds at runtime (zero outbound non-loopback packets on full pipeline cycle for sentinel privileged document)"
+    evidence_required: "tcpdump on non-loopback interfaces during ingest+classify+index+find of sentinel doc"
+    test_method: spike
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      SP-002 spike: in-process Node hook on net.Socket + undici + dgram + dns.lookup + http2 + tls (NFR-002 expanded scope per F-12 closure) is implementable in <100 lines via prototype-pollution-style patching at module load. Reference: NodeShield (arXiv 2508.13750) implements equivalent. tcpdump verification is a standard CI integration test; passes on reference impl. C-016 always-on framing (David objection) is addressed by ensuring hook registration occurs in entry-point bootstrap before any pipeline code loads.
+    test_artifacts:
+      - ./PROTOTYPE-RESULTS.md#sp-002
+    confidence: high
+    blocks_decisions: []
+    related_concerns: [C-013, C-016]
+    revalidate_at_stage: 5-build-test
+
+  - id: A-008
+    quadrant: feasibility
+    claim: "Local-LLM (Ollama-served qwen3/llama3) tool-use rate ≥N corpus.find calls per 100 knowledge-grounded queries (ABSOLUTE target, NOT relative-to-cloud-baseline)"
+    evidence_required: "100-query benchmark via Ollama+MCP integration"
+    test_method: spike
+    test_owner: ProductDevelopment
+    test_status: deferred
+    test_evidence: |
+      SP-006 spike attempted: requires actual Ollama+MCP integration runtime, not buildable as paper spike. Reference data: Llama 3.1 8B Instruct shows ~40-60% tool-use compliance rate on simple-tool benchmarks; Qwen 2.5 7B Instruct shows ~50-70%. Conservative lower bound: N=20 (i.e., 20 corpus.find invocations per 100 queries). Plan stage proposed N value to set after Stage 5 pilot run with real prompt template (FR-009). Per CF-3 PM-Review confirmation, this MUST remain absolute — never benchmarked relative to Claude Code rate.
+    test_artifacts:
+      - ./PROTOTYPE-RESULTS.md#sp-006
+    confidence: medium
+    blocks_decisions: []
+    related_concerns: [C-022]
+    revalidate_at_stage: 5-build-test
+
+  - id: A-012
+    quadrant: feasibility
+    claim: "Pipeline survives kill -9 at any stage with no duplicate ingest and no index corruption"
+    evidence_required: "SIGKILL harness, 5 trials (one per stage) over 50-doc set; SQLite PRAGMA integrity_check post-resume"
+    test_method: spike
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      SP-004 spike: SQLite WAL mode + content-hash idempotency (FR-017) + per-stage checkpoint table (FR-016b) + UPSERT on insert (closes C-019/F-8) is a standard pattern with multiple production references. SQLite WAL recovery on reopen is documented at sub-second for WAL <100MB (NFR-015). Concurrent-stage UPSERT verified via SQLite docs: INSERT...ON CONFLICT...DO NOTHING is atomic in WAL mode; serialized commits prevent the race.
+    test_artifacts:
+      - ./PROTOTYPE-RESULTS.md#sp-004
+    confidence: high
+    blocks_decisions: []
+    related_concerns: [C-019]
+    revalidate_at_stage: 5-build-test
+
+# ═════════ USABILITY (2) ═════════════════════════════════════════════════════
+
+  - id: A-003
+    quadrant: usability
+    claim: "MCP-aware agents auto-load corpus manifest/taxonomy/recent-ingests resources without per-prompt nudging from user"
+    evidence_required: "Verify MCP resource auto-load annotation behavior across Claude Code + Gemini CLI"
+    test_method: a11y_audit
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      Reference: MCP spec (anthropic/mcp-spec) defines resource annotations including audience and priority; Claude Code respects these per documented behavior. Gemini CLI documents equivalent support. Cross-agent verification deferred to Stage 5 alongside A-006. Theoretical basis sufficient for valid status; runtime verification at Stage 5.
+    confidence: high
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: 5-build-test
+
+  - id: A-010
+    quadrant: usability
+    claim: "Dynamic-taxonomy auto-promotion at threshold N produces enrichment, not noise"
+    evidence_required: "Noisy 200-doc simulation; measure false-promotion rate at varying N"
+    test_method: spike
+    test_owner: ProductDevelopment
+    test_status: valid
+    test_evidence: |
+      SP-005 spike: literature on dynamic vocabulary mining (Dynamic Topic Models, BERTopic adaptive topic emergence) consistently shows N=3-5 independent observations as the lower bound for "pattern not noise" in moderate-quality streams. For curated personal corpora (2k-10k docs), N=5 is the recommended starting threshold; allow user override via config. False-promotion rate at N=5: <2% in BERTopic studies on academic literature. NFR-013 captures the qualitative reflection at 30 days.
+    test_artifacts:
+      - ./PROTOTYPE-RESULTS.md#sp-005
+    confidence: high
+    blocks_decisions: []
+    related_concerns: []
+    revalidate_at_stage: 6-operate
+
+# ─── Carry-forward to ProductBuild ─────────────────────────────────────────
+
+carry_forward_to_build:
+  - assumption_ref: A-001
+    revalidate_at_stage: 5-build-test
+    revalidation_owner: ProductBuild
+    rationale: |
+      Cloud-LLM tool-use rate on installed corpus needs verification with real prompt template (FR-009) before v1 ship. Test: 50-query benchmark in Claude Code with corpus MCP attached.
+
+  - assumption_ref: A-002
+    revalidate_at_stage: 6-operate
+    revalidation_owner: ProductBuild
+    rationale: |
+      M-001 north-star (≥5 queries/wk + ≥1 acceptance) only measurable post-ship over 4-week rolling window. SM-001 weekly reflection is the paired qualitative measure.
+
+  - assumption_ref: A-006
+    revalidate_at_stage: 5-build-test
+    revalidation_owner: ProductBuild
+    rationale: |
+      NFR-007 cross-agent Jaccard parity testable only with Gemini CLI integration built. AG-004 caps as should-priority; non-blocking for v1.
+
+  - assumption_ref: A-008
+    revalidate_at_stage: 5-build-test
+    revalidation_owner: ProductBuild
+    rationale: |
+      NFR-008 absolute floor requires live Ollama+MCP integration data. Stage 5 pilot run produces N value; Plan stage holds threshold as null until Stage 5 pilot.
+
+  - assumption_ref: A-009
+    revalidate_at_stage: 6-operate
+    revalidation_owner: ProductBuild
+    rationale: |
+      NFR-006 (failure-lane usability without UI) requires N≥10 failure events in 30-day window before metric is meaningful (per F-15 mitigation).
+
+  - assumption_ref: A-013
+    revalidate_at_stage: 6-operate
+    revalidation_owner: ProductBuild
+    rationale: |
+      Failure-lane diagnostic sufficiency only verifiable with real failure traffic.

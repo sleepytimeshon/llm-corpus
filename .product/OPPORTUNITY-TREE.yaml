@@ -1,0 +1,344 @@
+---
+artifact: OPPORTUNITY-TREE
+project_slug: llm-corpus
+stage: 1-frame
+tier: deep
+template_version: 3.0.0
+generated: 2026-04-26T01:40:00-07:00
+generated_by: ProductDevelopment Skill v1.0
+supersedes: null
+product_type: software
+
+schema: torres_opportunity_solution_tree
+counts:
+  outcomes: 1
+  opportunities: 8
+  solutions: 8
+  assumptions: 13
+  by_quadrant:
+    desirability: 3
+    viability:    3
+    feasibility:  5
+    usability:    2
+
+completeness:
+  every_opportunity_has_solution: true
+  every_solution_has_assumption: true
+  every_opportunity_has_persona: true
+  every_assumption_has_quadrant: true
+  all_quadrants_represented: true
+
+links:
+  charter: ./CHARTER.md
+  personas: ./PERSONAS.md
+  anti_goals: ./ANTI-GOALS.md
+  success_metrics: ./SUCCESS-METRICS.md
+  feasibility_study: null
+  assumption_map: null
+
+sources:
+  decisions: ./ledgers/decisions.jsonl
+  concerns: ./ledgers/concerns.jsonl
+  questions: ./ledgers/questions.jsonl
+---
+
+outcome:
+  id: O-001
+  text: "Knowledge workers using AI terminal agents (or local LLMs) get answers grounded in the documents they have actually chosen to keep, every session, without sending those documents to the cloud or hand-tagging them."
+  metric_ref: M-001
+  source: whitepaper
+
+opportunities:
+
+  - id: OPP-001
+    title: "When I ask my agent something my own library would answer, it answers from training data or hallucinates instead of checking what I read"
+    evidence: "When the user asks the agent a question that their own library would answer, the agent answers from its training cutoff or hallucinates. (WHITEPAPER §1.1)"
+    personas_affected: [P-001, P-002]
+    severity: high
+    frequency: constant
+    solutions:
+      - id: SOL-001-A
+        title: "Read-only MCP `corpus.find` tool the agent calls before answering"
+        type: build
+        rough_effort: M
+        rough_value: XL
+        assumptions:
+          - id: A-001
+            quadrant: desirability
+            claim: "Cloud-LLM agents (Claude Code, Gemini CLI) will reach for `corpus.find` before training-data answers if the tool is available and an MCP prompt instructs them to"
+            evidence_required: "Prompt-engineering pass on Claude Code with corpus MCP server installed; observe tool-use rate on knowledge-grounded queries"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+          - id: A-002
+            quadrant: feasibility
+            claim: "Read-only MCP server can be implemented in TypeScript with the MCP SDK, exposing one tool + resources + prompts, deployable as a single npm package"
+            evidence_required: "Working MCP server skeleton with corpus.find tool returning ranked SearchHit list"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: high
+            blocks_solution: true
+
+  - id: OPP-002
+    title: "Every new session with my agent starts from scratch — the specs, papers, and notes that shape my actual work are invisible to it"
+    evidence: "Every session begins again at the model's training cutoff, with no recall of the documents that shape the user's actual work. (WHITEPAPER Abstract)"
+    personas_affected: [P-001, P-003]
+    severity: high
+    frequency: constant
+    solutions:
+      - id: SOL-002-A
+        title: "MCP resources auto-loaded at session start (manifest, taxonomy, recent ingests)"
+        type: build
+        rough_effort: S
+        rough_value: L
+        assumptions:
+          - id: A-003
+            quadrant: usability
+            claim: "Agents will use auto-loaded MCP resources to bias their reasoning toward corpus-grounded answers without per-prompt nudging from the user"
+            evidence_required: "A/B compare Claude Code session with vs without auto-loaded corpus resources on a 10-query script"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+
+  - id: OPP-003
+    title: "I started tagging my documents diligently and gave up around document two hundred — the system I was supposed to maintain rotted because the per-document cost was on me"
+    evidence: "Manual tagging decays. Users tag diligently for the first fifty documents and abandon the practice by document two hundred. (WHITEPAPER §1.2)"
+    personas_affected: [P-001, P-002]
+    severity: high
+    frequency: constant
+    solutions:
+      - id: SOL-003-A
+        title: "Local-LLM classifier with grammar-enforced JSON Schema output at ingest time"
+        type: build
+        rough_effort: L
+        rough_value: XL
+        assumptions:
+          - id: A-004
+            quadrant: feasibility
+            claim: "Ollama's `format` parameter (JSON Schema constraint) reliably constrains qwen3:8b output such that invalid metadata is structurally impossible at the token level"
+            evidence_required: "100-document classification run with schema validation; expect 100% schema-valid output"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: high
+            blocks_solution: true
+          - id: A-005
+            quadrant: viability
+            claim: "Classifier runs at zero marginal cost per document on user hardware (RTX 4090 or M-series Mac) within acceptable wall-clock per ingest"
+            evidence_required: "Benchmark classification latency for 100 docs of varying length on target hardware"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: high
+            blocks_solution: false
+
+  - id: OPP-004
+    title: "My richly tagged personal-knowledge vault is built for my eyes — agents can't query it, parse it, or rank results from it without glue I have to write myself"
+    evidence: "A vault full of richly tagged documents is not, by virtue of its tags, a system an AI agent can query — there is no machine interface to invoke, no structured response to parse, no ranked retrieval API. (WHITEPAPER §1.2)"
+    personas_affected: [P-001, P-003]
+    severity: medium
+    frequency: sometimes
+    solutions:
+      - id: SOL-004-A
+        title: "Read-only MCP server exposing `corpus.find` + URI-addressable resources + reusable prompts"
+        type: build
+        rough_effort: M
+        rough_value: L
+        assumptions:
+          - id: A-006
+            quadrant: usability
+            claim: "One MCP server installation makes the corpus available cross-agent (Claude Code, Gemini CLI, Codex CLI) without per-platform adapters"
+            evidence_required: "Install once; verify Claude Code AND Gemini CLI can both call corpus.find returning identical ranked results"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+
+  - id: OPP-005
+    title: "My documents are sensitive — financial, medical, legal, proprietary — so cloud RAG is impermissible for me regardless of the provider's controls"
+    evidence: "For sensitive material — financial records, medical files, legal documents, proprietary specifications — this is impermissible regardless of the cloud provider's controls. (WHITEPAPER §2.3)"
+    personas_affected: [P-002]
+    severity: high
+    frequency: constant
+    solutions:
+      - id: SOL-005-A
+        title: "Strict local boundary — no document leaves machine during ingest, classify, embed, index, or search"
+        type: build
+        rough_effort: S
+        rough_value: XL
+        assumptions:
+          - id: A-007
+            quadrant: viability
+            claim: "Local-only enforcement is auditable via lint rules forbidding network-call surfaces in pipeline + adapter source paths (no fetch, no http client, no cloud SDK imports)"
+            evidence_required: "Lint rule scans pipeline + adapter packages for forbidden imports; CI run blocks merges that introduce them"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: high
+            blocks_solution: true
+
+  - id: OPP-006
+    title: "My primary reasoning engine is a local LLM with no cloud fallback — the model itself contains no documents and I have no knowledge layer at all"
+    evidence: "For a user whose primary reasoning engine is a local LLM, the corpus is not a complementary knowledge layer — it is *the* knowledge layer. The model itself contains no documents. (WHITEPAPER §2.1)"
+    personas_affected: [P-003]
+    severity: high
+    frequency: constant
+    solutions:
+      - id: SOL-006-A
+        title: "Same MCP server serves local LLMs running through Ollama (qwen3, llama3) via stdio transport"
+        type: build
+        rough_effort: S
+        rough_value: XL
+        assumptions:
+          - id: A-008
+            quadrant: usability
+            claim: "Ollama-served models can consume MCP tool outputs effectively — they will call corpus.find appropriately and ground their responses in returned hits"
+            evidence_required: "Run llama3.3:70b through Ollama with MCP corpus server; verify tool-use rate on knowledge-grounded queries matches Claude Code baseline within 30%"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: low
+            blocks_solution: true
+          - id: A-009
+            quadrant: feasibility
+            claim: "Ollama models support MCP tool use via stdio transport with current SDK version"
+            evidence_required: "Confirm Ollama+MCP integration works end-to-end; identify any required harness shim"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+
+  - id: OPP-007
+    title: "When my organizational vocabulary needs to grow with a new interest area, fixed enumerations force me to either misfile the document or stop and re-engineer the taxonomy"
+    evidence: "Domains and tags are validated against the live corpus rather than a fixed enumeration, which allows the organizational system to grow with the user's interests without operator intervention. (WHITEPAPER Abstract; §3.3)"
+    personas_affected: [P-002]
+    severity: medium
+    frequency: sometimes
+    solutions:
+      - id: SOL-007-A
+        title: "Dynamic taxonomy — `facet_domain_proposed` field in classifier schema; adoption-threshold mechanism promotes proposed → established"
+        type: build
+        rough_effort: M
+        rough_value: M
+        assumptions:
+          - id: A-010
+            quadrant: feasibility
+            claim: "Adoption-threshold mechanism (e.g., N documents propose same new domain → auto-promote to established) works without operator intervention and resists misclassification noise"
+            evidence_required: "Simulate 200-doc ingest run with intentional noise; measure false-promotion rate of proposed domains"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+          - id: A-011
+            quadrant: desirability
+            claim: "User welcomes auto-proposed taxonomy growth (does not feel it as loss of control over their classification system)"
+            evidence_required: "Use the system for 30 days; reflect on whether new auto-proposed domains felt like enrichment or noise"
+            test_method: interview
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: false
+
+  - id: OPP-008
+    title: "When a document arrives — a dropped file, a URL I want to keep, an inbox message — I have to stop my real work to process, normalize, and file it before it's useful"
+    evidence: "The user supplies documents — by file drop, by URL, by inbox watcher, by direct command. ... A file-system watcher monitors an inbox directory ... Validated files enter a queue and are processed through the full pipeline ... without human intervention. (WHITEPAPER Abstract; §3.7)"
+    personas_affected: [P-001, P-003]
+    severity: medium
+    frequency: constant
+    solutions:
+      - id: SOL-008-A
+        title: "Inbox watcher + autonomous pipeline (validation gate → queue → extract → classify → embed → index, all idempotent + resumable)"
+        type: build
+        rough_effort: L
+        rough_value: L
+        assumptions:
+          - id: A-012
+            quadrant: feasibility
+            claim: "Pipeline stages can be made idempotent + atomic + resumable so a process killed mid-run leaves the corpus in a recoverable state and resumes from the last successfully completed stage"
+            evidence_required: "Kill -9 the pipeline at each of 6 stages on a 50-doc run; verify resume completes correctly without duplicates or corruption"
+            test_method: spike
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: true
+          - id: A-013
+            quadrant: desirability
+            claim: "A failure lane (structured diagnostics; user can inspect, correct, replay) is sufficient for trust — user does NOT need a UI for this"
+            evidence_required: "Use the system 30 days; observe whether failure lane inspection feels acceptable or whether a human-readable triage UI becomes necessary"
+            test_method: interview
+            test_owner: Shon
+            test_status: untested
+            confidence: medium
+            blocks_solution: false
+
+carry_forward_to_spec:
+  - solution_ref: SOL-001-A
+    expected_requirement_count: 6
+    notes: |
+      MCP corpus.find tool surface (input args, return shape, ranking contract, error paths, telemetry hooks, prompt template).
+  - solution_ref: SOL-002-A
+    expected_requirement_count: 4
+    notes: |
+      MCP resources (manifest, taxonomy, recent, docs/{id}) — URI shape, content negotiation, auto-load semantics, refresh cadence.
+  - solution_ref: SOL-003-A
+    expected_requirement_count: 8
+    notes: |
+      Classifier pipeline: format-constrained Ollama call, schema validation, retry policy, error routing, vocabulary lookup, dynamic-domain proposal hook, frontmatter writeback, telemetry.
+  - solution_ref: SOL-005-A
+    expected_requirement_count: 4
+    notes: |
+      Local-only enforcement: lint rule, banned imports list, CI integration, runtime audit (process-level egress check optional).
+  - solution_ref: SOL-008-A
+    expected_requirement_count: 7
+    notes: |
+      Inbox watcher, validation gate (extension/MIME/size/filename), queue, per-stage transactional commit, resume-from-checkpoint, failure lane, idempotency keys.
+
+carry_forward_to_validate:
+  - assumption_ref: A-001
+    quadrant: desirability
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-002
+    quadrant: feasibility
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-003
+    quadrant: usability
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-004
+    quadrant: feasibility
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-006
+    quadrant: usability
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-007
+    quadrant: viability
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-008
+    quadrant: usability
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-009
+    quadrant: feasibility
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-010
+    quadrant: feasibility
+    test_method: spike
+    test_owner: Shon
+  - assumption_ref: A-012
+    quadrant: feasibility
+    test_method: spike
+    test_owner: Shon

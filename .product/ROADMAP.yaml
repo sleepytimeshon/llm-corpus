@@ -1,0 +1,221 @@
+---
+artifact: ROADMAP
+project_slug: llm-corpus
+stage: 4-plan
+tier: deep
+template_version: 3.0.0
+generated: 2026-04-26T00:10:00Z
+generated_by: ProductDevelopment Skill v3.0
+supersedes: null
+product_type: software
+
+counts:
+  now_items: 9
+  next_items: 4
+  later_items: 4
+  critical_path_items: 8
+completeness:
+  all_now_items_have_sprint_ref: true
+  all_critical_path_adrs_accepted: true    # PM-Review 2026-04-26: ADR-001..ADR-008 all accepted
+  all_now_items_have_success_metric: true
+links:
+  opportunity_tree: ./OPPORTUNITY-TREE.yaml
+  requirements: ./REQUIREMENTS.yaml
+  sprint_plan: ./SPRINT-PLAN.yaml
+  adrs_dir: ./ADRs/
+  decisions: ./ledgers/decisions.jsonl
+  concerns: ./ledgers/concerns.jsonl
+sources:
+  decisions: [D-003, D-004, D-005, D-009, D-010, D-012, D-013, D-015]
+  concerns: [C-013, C-016, C-018, C-019, C-020, C-022, C-027, C-028, C-029, C-030, C-031]
+  questions: [Q-001, Q-002, Q-003, Q-004, Q-005]
+---
+
+# Roadmap horizons (Now / Next / Later) — Bastow pattern, no calendar dates.
+# now: 32 must-have requirements + 1 pilot, sliced into 9 sprints (SP-000..SP-008)
+# next: 13 should-have requirements
+# later: 5 nice-to-have requirements (intentionally undersized)
+
+horizon:
+
+  now:
+
+    - id: RM-001
+      title: "NFR-008 pre-build pilot — set absolute floor or downgrade"
+      opportunity_ref: OPP-006
+      requirements: []                              # pilot work; informs NFR-008 commitment
+      success_metric: "Final NFR-008 N value committed (≥20 on Llama 3.1 8B AND Qwen 2.5 7B with FR-009 prompt) OR formal downgrade to nice_to_have decision recorded in decisions.jsonl"
+      sprint_ref: SP-000
+      confidence: high
+      adrs_referenced: [ADR-005]
+      critical_path: true
+
+    - id: RM-002
+      title: "Local-only enforcement + MCP server foundation"
+      opportunity_ref: OPP-005
+      requirements: [NFR-001, NFR-002, FR-001]
+      success_metric: "All Gherkin scenarios for NFR-001/NFR-002/FR-001 pass; tcpdump test on non-loopback interfaces shows zero packets across pipeline; corpus.find tool discoverable via MCP tools/list handshake"
+      sprint_ref: SP-001
+      confidence: high
+      adrs_referenced: [ADR-001]
+      critical_path: true
+
+    - id: RM-003
+      title: "MCP server resources + retrieval-prompt templates"
+      opportunity_ref: OPP-002
+      requirements: [FR-005, FR-006, FR-007, FR-008, FR-009]
+      success_metric: "Manifest/taxonomy/recent-ingests/per-doc resources auto-load on session start; FR-009 retrieval prompt registered and discoverable; all Gherkin scenarios for FR-005..009 pass"
+      sprint_ref: SP-002
+      confidence: high
+      adrs_referenced: [ADR-008]
+      critical_path: true
+
+    - id: RM-004
+      title: "Inbox watcher + ingest normalization + content-hash idempotency"
+      opportunity_ref: OPP-008
+      requirements: [FR-010, FR-011, FR-017, NFR-016]
+      success_metric: "Filesystem watcher enqueues new docs; pipeline normalizes to Markdown+YAML frontmatter; SHA-256 full-file content hash deduplicates correctly; ≥6 named telemetry event classes emitted; all Gherkin scenarios pass including F-5 MIME-sniff and F-10 full-file-hash adversary scenarios"
+      sprint_ref: SP-003
+      confidence: high
+      adrs_referenced: [ADR-002, ADR-007]
+      critical_path: true
+
+    - id: RM-005
+      title: "Local-LLM classifier with grammar-constrained metadata"
+      opportunity_ref: OPP-003
+      requirements: [FR-012, FR-013, FR-014, NFR-004]
+      success_metric: "Real 100-doc Ollama benchmark (replacing prior reference-only evidence per C-031) shows 100% schema-valid output via grammar-constrained sampling; classifier validates domains/tags against live taxonomy; classifier wall-clock per doc within Stage-3-Research baseline"
+      sprint_ref: SP-004
+      confidence: high
+      adrs_referenced: []
+      critical_path: true
+
+    - id: RM-006
+      title: "Embed + index + hybrid retrieval (corpus.find)"
+      opportunity_ref: OPP-001
+      requirements: [FR-015, FR-002, FR-003, FR-004, NFR-003]
+      success_metric: "corpus.find returns ranked SearchHit list; hybrid retrieval fuses BM25+dense+graph+confidence; deterministic structured error envelope; p95 latency ≤250ms at 5k docs verified by harness"
+      sprint_ref: SP-005
+      confidence: high
+      adrs_referenced: [ADR-004]
+      critical_path: true
+
+    - id: RM-007
+      title: "Idempotency + resumability + failure lane"
+      opportunity_ref: OPP-008
+      requirements: [FR-016a, FR-016b, FR-018, NFR-005, NFR-015]
+      success_metric: "SQLite UPSERT pattern eliminates concurrent-stage duplicates (closes F-8); kill -9 at any stage leaves corpus recoverable; failure lane structured diagnostics; SQLite WAL recovery ≤2s; all rollback Gherkin scenarios pass"
+      sprint_ref: SP-006
+      confidence: high
+      adrs_referenced: [ADR-003]
+      critical_path: false                          # parallel to RM-006; not on slip-cascade chain
+
+    - id: RM-008
+      title: "Install + 90-second first-run UX + single-file SQLite"
+      opportunity_ref: OPP-004
+      requirements: [TR-001, TR-002, NFR-006, NFR-010, NFR-014]
+      success_metric: "npx <pkg> init → first successful corpus.find within 90s on cold install; uninstall reverses all install side-effects; failure lane CLI-triable without UI; index lives in single SQLite file"
+      sprint_ref: SP-007
+      confidence: high
+      adrs_referenced: []
+      critical_path: true
+
+    - id: RM-009
+      title: "User-level acceptance — UR-001/UR-002/UR-003 closed"
+      opportunity_ref: OPP-008
+      requirements: [UR-001, UR-002, UR-003]
+      success_metric: "Maya-persona Week-1 engagement-proxy hit (≥5 corpus.find queries + ≥1 acceptance event in 7 days) per C-028; cross-session install persistence verified; all UR Gherkin scenarios pass with traceable references"
+      sprint_ref: SP-008
+      confidence: high
+      adrs_referenced: []
+      critical_path: true
+
+  next:
+
+    - id: RM-010
+      title: "Re-classification + dynamic taxonomy promotion"
+      opportunity_ref: OPP-007
+      requirements: [UR-004, FR-019, NFR-013]
+      success_metric: "User can trigger re-classification on demand; FR-019 promotes proposed→established at N=5 default; 30-day reflection captures enrichment-vs-noise signal"
+      sprint_ref: null
+      confidence: medium
+      adrs_referenced: []
+      critical_path: false
+
+    - id: RM-011
+      title: "Replay failed ingests + corpus.health"
+      opportunity_ref: OPP-008
+      requirements: [UR-005, FR-021, NFR-011]
+      success_metric: "User can replay corrected failed ingest; corpus.health resource reports diagnostic state; structured event log for observability"
+      sprint_ref: null
+      confidence: medium
+      adrs_referenced: []
+      critical_path: false
+
+    - id: RM-012
+      title: "URL inbox source"
+      opportunity_ref: OPP-008
+      requirements: [FR-020]
+      success_metric: "URL submitted as ingest source produces document indistinguishable in retrieval from same content via filesystem inbox"
+      sprint_ref: null
+      confidence: medium
+      adrs_referenced: [ADR-006]
+      critical_path: false
+
+    - id: RM-013
+      title: "Cross-agent + Ollama-served local-LLM compatibility"
+      opportunity_ref: OPP-006
+      requirements: [FR-022, FR-023, NFR-007, NFR-008, NFR-009]
+      success_metric: "MCP server invocable from Gemini CLI + Codex CLI + Ollama-served qwen3/llama3; Jaccard parity ≥0.7 between Claude Code and Gemini CLI on 20-query script; NFR-008 N met per RM-001 pilot output"
+      sprint_ref: null
+      confidence: medium
+      adrs_referenced: []
+      critical_path: false
+
+  later:
+
+    - id: RM-014
+      title: "Mark-accepted/rejected feedback loop"
+      opportunity_ref: OPP-001
+      requirements: []
+      success_metric: null
+      sprint_ref: null
+      confidence: low
+      adrs_referenced: []
+      critical_path: false
+
+    - id: RM-015
+      title: "Email/inbox-watcher source"
+      opportunity_ref: OPP-008
+      requirements: []
+      success_metric: null
+      sprint_ref: null
+      confidence: low
+      adrs_referenced: []
+      critical_path: false
+
+    - id: RM-016
+      title: "Knowledge-graph corpus.graph resource"
+      opportunity_ref: OPP-001
+      requirements: []
+      success_metric: null
+      sprint_ref: null
+      confidence: low
+      adrs_referenced: []
+      critical_path: false
+
+    - id: RM-017
+      title: "Zero-marginal-cost validation (NFR-012)"
+      opportunity_ref: OPP-003
+      requirements: []
+      success_metric: null
+      sprint_ref: null
+      confidence: low
+      adrs_referenced: []
+      critical_path: false
+
+# Critical path — the chain of items where slippage cascades.
+# RM-001 (pilot) → RM-002 (security) → RM-003 (server resources)/RM-004 (ingest) → RM-005 (classifier)
+# → RM-006 (retrieval) → RM-008 (install UX) → RM-009 (user acceptance).
+# RM-007 (resumability/failure lane) is parallel to RM-006; RM-003 is parallel to RM-004.
+critical_path: [RM-001, RM-002, RM-003, RM-004, RM-005, RM-006, RM-008, RM-009]

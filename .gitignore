@@ -1,0 +1,8 @@
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+.telemetry*.jsonl
+.source-index.jsonl
+.tmp-*
+*.tmp
