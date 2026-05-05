@@ -109,10 +109,10 @@
 
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: [Measurable metric, e.g., "ingest 100 documents in under 5 minutes on the user's primary machine"]
+- **SC-002**: [Measurable metric, e.g., "p95 retrieval latency under 50ms over a 500-document corpus on the user's primary machine" — for llm-corpus, success criteria MUST be expressed in single-user/single-machine terms per Principle IV; multi-user/multi-tenant phrasing is FORBIDDEN]
+- **SC-003**: [User satisfaction metric, e.g., "user reports the corpus answered their question on first try in 8 of 10 sample queries from their actual workflow"]
+- **SC-004**: [Operational metric, e.g., "drain run completes a 100-document inbox in under 10 minutes with zero files left in pending/"]
 
 ## Assumptions
 

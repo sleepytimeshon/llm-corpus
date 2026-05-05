@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: The examples below include test tasks. For llm-corpus, tests are MANDATORY for any task that touches IO, classifier output, telemetry events, paths, taxonomy, schema validation, or subprocess invocation — these are the surfaces governed by NON-NEGOTIABLE constitution principles V, VII, VIII, IX, X, XII, XIII, XIV, XV. Tests are OPTIONAL only for pure-function refactors with no behavioral change.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 

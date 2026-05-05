@@ -31,7 +31,26 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+For each principle, mark `[x]` if the plan complies, `[ ]` if it does not (and populate Complexity Tracking with a justification). All 16 principles MUST be marked `[x]` for the plan to merge unchallenged.
+
+- [ ] **I. Local-First, No Egress** — Plan introduces no code path that reaches a non-localhost network endpoint.
+- [ ] **II. User Curates, LLM Classifies Metadata** — Plan introduces no LLM-generated document bodies in the canonical store; no `synthesis/` namespace; no forbidden frontmatter fields (`origin`, `provenance_*`, `confidence`, `captured_at`, `corpus capture`).
+- [ ] **III. Substrate, Not Surface** — Plan introduces no HTTP server other than MCP stdio, no TUI, no browser-rendered surface, no agent-facing mutation surface, no HTML/graphical output.
+- [ ] **IV. Knowledge, Not Memory; Single-User, Single-Machine** — Plan introduces no conversation memory, no SaaS connector, no shared CORPUS_HOME, no cross-machine sync, no multi-user concept, no permissions/roles.
+- [ ] **V. Schema-Enforced Structured Output** — Plan uses Ollama `format` parameter for classification; no post-hoc string parsing; frontmatter routes through one YAML library.
+- [ ] **VI. One Pipeline, Two Policies** — Plan does NOT fork the pipeline; behavior changes go in `Policy` fields, not parallel code paths.
+- [ ] **VII. Cancellable, Bounded IO** — Every external IO call takes `AbortSignal`; per-call/per-doc/per-batch timeouts configurable; no `Promise.race` against `setTimeout`; no `execSync`.
+- [ ] **VIII. Atomic Writes & Transactional Index Updates** — Disk writes use `tmp + fsync + rename + dirsync` with PID-and-entropy temp suffix; index writes commit FTS5 + docs + sqlite-vec rows in one transaction; tmp dirs use `withTempDir`.
+- [ ] **IX. Concurrency-Safe Shared State** — Drain serialized via `flock`; SQLite in WAL mode; append-only JSONL records ≤ 4 KB or use file locks.
+- [ ] **X. Idempotent Pipeline Transitions; Three-Folder Routing** — Every transition is `(state, input) → next_state | error` with no extra side effects on re-run; `pending/`/`processed/`/`failed/` discipline maintained.
+- [ ] **XI. Library/CLI Boundary** — No `process.exit` in `packages/{contracts,core,storage,index,inference,extract,pipeline}/`; library functions return `Result<T,E>` or throw typed errors.
+- [ ] **XII. Subprocess Hygiene** — All subprocess invocations go through the `runTool(name, args[], opts)` helper; no `exec`, `execSync`, or string-formed shell commands.
+- [ ] **XIII. Telemetry-or-Die** — Every catch block under `packages/` emits a structured telemetry event at severity matching the actual error severity; no swallowing in wrappers/middleware.
+- [ ] **XIV. XDG Paths via Single Resolver** — Every filesystem path the system reads/writes resolves through `Paths.*`; no writes to `/tmp/`, `/var/`, `os.tmpdir()`, or anywhere outside `$HOME`.
+- [ ] **XV. Dynamic Taxonomy with User-Reviewed Promotion** — No hardcoded `enum FacetDomain`; classifier prompt rendered with live `SELECT DISTINCT facet_domain`; new domains enter user-review queue; auto-promotion is FORBIDDEN without explicit user acknowledgment.
+- [ ] **XVI. Validation Honesty** — Plan introduces no marketing claim of cross-agent compatibility, no formal eval harness as v1 success criterion, no performance guarantees not backed by CI benchmark on primary user's hardware.
+
+See `.specify/memory/constitution.md` for full principle text and rationale.
 
 ## Project Structure
 
