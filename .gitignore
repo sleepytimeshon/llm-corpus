@@ -6,3 +6,8 @@ node_modules/
 .source-index.jsonl
 .tmp-*
 *.tmp
+
+# --- Claude Code ---
+# spec-kit installs slash commands here; treated as derived state
+# (re-materialized by `specify init --here`). May also hold auth tokens.
+.claude/
