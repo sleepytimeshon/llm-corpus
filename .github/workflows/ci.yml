@@ -1,0 +1,76 @@
+# CI for llm-corpus (SP-001 baseline).
+#
+# Mirrors the local verification gate exactly:
+#   npm run lint
+#   npm run build
+#   npm run test:unit
+#   npm run test:integration
+#   npm test                       # full suite (includes lint-fixtures)
+#   npm run verify:native-addons   # NFR-002c allowlist gate
+#
+# Root-gated tests (tcpdump, child-process firewall) require CAP_NET_ADMIN
+# to install/remove iptables rules. They are GATED via the
+# LLM_CORPUS_ROOT_TESTS=1 env var; this workflow does NOT set that var,
+# so those tests skip cleanly. A separate `root-tests.yml` workflow could
+# run them in a privileged self-hosted runner — out of SP-001 scope.
+#
+# Per US3 (T057): NFR-001 lint runs on every PR and main push.
+# Per US4 (T062): NFR-002c verify-native-addons runs as `postinstall`,
+# i.e., implicitly during `npm ci`. We also run it explicitly post-build
+# for diagnostic clarity.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, build, test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      # `npm ci` runs the `postinstall` script which invokes
+      # `verify-native-addons.ts`. If a non-allowlisted .node addon was
+      # introduced, install fails here.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (NFR-001 + Constitution XI/XII/XIV/NFR-002 rules)
+        run: npm run lint
+
+      - name: Build (TypeScript strict, project references)
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests (root-gated tests skip cleanly)
+        run: npm run test:integration
+
+      - name: Lint-fixture tests (NFR-001 fixture rig)
+        run: npm run test:lint
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Verify native-addon allowlist (NFR-002c)
+        run: npm run verify:native-addons

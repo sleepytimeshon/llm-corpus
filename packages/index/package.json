@@ -1,0 +1,12 @@
+{
+  "name": "@llm-corpus/index",
+  "version": "0.1.0",
+  "description": "Index adapter stubs (NFR-001 lint scope).",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@llm-corpus/contracts": "0.1.0"
+  }
+}

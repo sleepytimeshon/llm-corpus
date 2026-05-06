@@ -1,0 +1,38 @@
+{
+  "name": "@llm-corpus/contracts",
+  "version": "0.1.0",
+  "description": "Pure types — Result<T,E>, Paths resolver, telemetry primitives. Zero IO.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "default": "./dist/paths.js"
+    },
+    "./result": {
+      "types": "./dist/result.d.ts",
+      "default": "./dist/result.js"
+    },
+    "./telemetry": {
+      "types": "./dist/telemetry.d.ts",
+      "default": "./dist/telemetry.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./run-tool": {
+      "types": "./dist/run-tool.d.ts",
+      "default": "./dist/run-tool.js"
+    }
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}

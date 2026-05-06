@@ -1,0 +1,30 @@
+{
+  "name": "@llm-corpus/transport",
+  "version": "0.1.0",
+  "description": "MCP stdio transport — egress hook bootstraps here.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./egress-hook": {
+      "types": "./dist/egress-hook.d.ts",
+      "default": "./dist/egress-hook.js"
+    },
+    "./egress-hook-bootstrap": {
+      "types": "./dist/egress-hook-bootstrap.d.ts",
+      "default": "./dist/egress-hook-bootstrap.js"
+    }
+  },
+  "dependencies": {
+    "@llm-corpus/contracts": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "undici": "^6.19.0",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
+  }
+}

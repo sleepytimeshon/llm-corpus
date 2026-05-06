@@ -1,0 +1,50 @@
+{
+  "name": "llm-corpus",
+  "version": "0.1.0",
+  "description": "Local-first knowledge substrate for AI terminal agents (SP-001 foundation)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/contracts",
+    "packages/transport",
+    "packages/daemon",
+    "packages/cli",
+    "packages/storage",
+    "packages/index",
+    "packages/inference",
+    "packages/extract",
+    "packages/pipeline"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "lint": "eslint packages tools tests",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:integration:root": "LLM_CORPUS_ROOT_TESTS=1 vitest run tests/integration",
+    "test:lint": "vitest run tests/lint-fixtures",
+    "mcp:start": "node packages/cli/dist/index.js mcp",
+    "verify:native-addons": "node --import tsx build/verify-native-addons.ts",
+    "postinstall": "node --import tsx build/verify-native-addons.ts"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "eslint": "^9.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.5.0",
+    "undici": "^6.19.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.2.0",
+    "sqlite-vec": "^0.1.0"
+  }
+}
