@@ -56,12 +56,27 @@ describe.skipIf(!ROOT_GATE)('tcpdump sentinel (T043 / NFR-002 / SC-002)', () => 
           '-w',
           captureFile,
           '-n',
-          'not (host 127.0.0.0/8) and not (ip6 host ::1)',
+          // BPF: `host` requires a single address; use `net` for CIDR ranges.
+          'not net 127.0.0.0/8 and not host ::1',
         ],
         { shell: false, stdio: ['ignore', 'pipe', 'pipe'] },
       );
+      // Capture stderr so a tcpdump startup failure (e.g. bad BPF, missing
+      // capability) surfaces as a clear assertion instead of a 60s timeout.
+      // Drain stdout to keep its pipe from blocking on shutdown banner.
+      let tcpdumpStderr = '';
+      tcpdump.stdout?.on('data', () => {});
+      tcpdump.stderr?.on('data', (chunk: Buffer) => {
+        tcpdumpStderr += chunk.toString('utf8');
+      });
       // Wait briefly for tcpdump to start capturing.
       await new Promise<void>((resolve) => setTimeout(resolve, 800));
+      // Fail fast if tcpdump died during warmup (e.g. BPF syntax error).
+      if (tcpdump.exitCode !== null) {
+        throw new Error(
+          `tcpdump exited during warmup with code ${tcpdump.exitCode}; stderr:\n${tcpdumpStderr}`,
+        );
+      }
 
       // Run the find-path probe — sentinel query carries the SENTINEL_TOKEN.
       const input = CorpusFindInput.parse({
@@ -76,21 +91,24 @@ describe.skipIf(!ROOT_GATE)('tcpdump sentinel (T043 / NFR-002 / SC-002)', () => 
       // Allow brief flush window
       await new Promise<void>((resolve) => setTimeout(resolve, 300));
     } finally {
-      if (tcpdump) {
-        tcpdump.kill('SIGINT');
-        await new Promise<void>((resolve) => {
-          tcpdump!.once('close', () => resolve());
+      if (tcpdump && tcpdump.exitCode === null) {
+        const exited = new Promise<void>((resolve) => {
+          tcpdump!.once('exit', () => resolve());
         });
+        tcpdump.kill('SIGINT');
+        await exited;
       }
     }
 
-    // Inspect capture: any captured frames means egress leaked.
-    const stat = fs.statSync(captureFile);
-    // pcap-savefile global header is 24 bytes; if no frames captured, the
-    // file is exactly 24 bytes (or near it; some tcpdump variants add an
-    // empty record). Allow a tiny slack.
-    const NON_LOOPBACK_PACKETS_PRESENT = stat.size > 100;
-    expect(NON_LOOPBACK_PACKETS_PRESENT).toBe(false);
+    // Inspect capture for the sentinel token. File size alone isn't a sound
+    // heuristic — any non-loopback ambient traffic (DNS/NTP/etc from unrelated
+    // processes) inflates it. The find-path passes SENTINEL_TOKEN as the
+    // query string; if it leaked, those exact bytes will appear in a captured
+    // packet's payload. If they don't, no corpus-attributable leak occurred,
+    // regardless of ambient traffic.
+    const captureBytes = fs.readFileSync(captureFile);
+    const sentinelLeaked = captureBytes.includes(Buffer.from(SENTINEL_TOKEN, 'utf8'));
+    expect(sentinelLeaked).toBe(false);
 
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }, 60_000);
