@@ -1,0 +1,16 @@
+{
+  "name": "@llm-corpus/cli",
+  "version": "0.1.0",
+  "description": "corpus binary entry-point.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "corpus": "./dist/index.js"
+  },
+  "dependencies": {
+    "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/transport": "0.1.0"
+  }
+}

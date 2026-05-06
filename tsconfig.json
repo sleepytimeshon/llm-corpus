@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/transport" },
+    { "path": "./packages/daemon" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/index" },
+    { "path": "./packages/inference" },
+    { "path": "./packages/extract" },
+    { "path": "./packages/pipeline" }
+  ]
+}

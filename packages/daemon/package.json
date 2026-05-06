@@ -1,0 +1,27 @@
+{
+  "name": "@llm-corpus/daemon",
+  "version": "0.1.0",
+  "description": "Worker-thread egress-guard registration shim.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./worker-bootstrap": {
+      "types": "./dist/worker-bootstrap.d.ts",
+      "default": "./dist/worker-bootstrap.js"
+    },
+    "./worker-spawn-guard": {
+      "types": "./dist/worker-spawn-guard.d.ts",
+      "default": "./dist/worker-spawn-guard.js"
+    }
+  },
+  "dependencies": {
+    "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/transport": "0.1.0"
+  }
+}

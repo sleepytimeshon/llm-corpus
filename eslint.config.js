@@ -1,0 +1,132 @@
+// eslint.config.js — flat config (ESLint 9+)
+// Custom rules from tools/eslint-rules/ are wired here per T027.
+
+import tseslint from 'typescript-eslint';
+import noForbiddenNetworkImports from './tools/eslint-rules/no-forbidden-network-imports.js';
+import noProcessExitInLibs from './tools/eslint-rules/no-process-exit-in-libs.js';
+import pathsFromResolverOnly from './tools/eslint-rules/paths-from-resolver-only.js';
+import noDirectWorkerSpawn from './tools/eslint-rules/no-direct-worker-spawn.js';
+import noShellStringExec from './tools/eslint-rules/no-shell-string-exec.js';
+
+const localRulesPlugin = {
+  rules: {
+    'no-forbidden-network-imports': noForbiddenNetworkImports,
+    'no-process-exit-in-libs': noProcessExitInLibs,
+    'paths-from-resolver-only': pathsFromResolverOnly,
+    'no-direct-worker-spawn': noDirectWorkerSpawn,
+    'no-shell-string-exec': noShellStringExec,
+  },
+};
+
+export default [
+  // Ignores
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/*.tsbuildinfo',
+      '.specify/**',
+      '.claude/**',
+      '.product/**',
+      'specs/**',
+    ],
+  },
+
+  // Base TS recommended
+  ...tseslint.configs.recommended,
+
+  // All TypeScript source under packages/ and tools/
+  {
+    files: ['packages/**/*.ts', 'tools/**/*.ts', 'build/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      'llm-corpus': localRulesPlugin,
+    },
+    rules: {
+      // Custom rules — most are scoped per file pattern below; activate with sane defaults here.
+      'llm-corpus/no-shell-string-exec': 'error',
+    },
+  },
+
+  // NFR-001 — forbidden network imports in pipeline + adapter packages.
+  // Scope: packages/{pipeline,storage,index,inference,extract,cli}.
+  // OUT of scope: packages/{transport,daemon,contracts} (they host the egress hook).
+  {
+    files: [
+      'packages/pipeline/**/*.ts',
+      'packages/storage/**/*.ts',
+      'packages/index/**/*.ts',
+      'packages/inference/**/*.ts',
+      'packages/extract/**/*.ts',
+      'packages/cli/**/*.ts',
+    ],
+    plugins: { 'llm-corpus': localRulesPlugin },
+    rules: {
+      'llm-corpus/no-forbidden-network-imports': 'error',
+    },
+  },
+
+  // Constitution XI — no process.exit in libraries.
+  // Scope: contracts, core, storage, index, inference, extract, pipeline.
+  {
+    files: [
+      'packages/contracts/**/*.ts',
+      'packages/storage/**/*.ts',
+      'packages/index/**/*.ts',
+      'packages/inference/**/*.ts',
+      'packages/extract/**/*.ts',
+      'packages/pipeline/**/*.ts',
+    ],
+    plugins: { 'llm-corpus': localRulesPlugin },
+    rules: {
+      'llm-corpus/no-process-exit-in-libs': 'error',
+    },
+  },
+
+  // Constitution XIV — paths from resolver only.
+  // Scope: ALL of packages/ EXCEPT packages/contracts/src/paths.ts (the resolver itself).
+  {
+    files: ['packages/**/*.ts'],
+    ignores: ['packages/contracts/src/paths.ts'],
+    plugins: { 'llm-corpus': localRulesPlugin },
+    rules: {
+      'llm-corpus/paths-from-resolver-only': 'error',
+    },
+  },
+
+  // NFR-002 — no direct Worker spawn outside the guard helper.
+  {
+    files: ['packages/**/*.ts'],
+    ignores: ['packages/daemon/src/worker-spawn-guard.ts'],
+    plugins: { 'llm-corpus': localRulesPlugin },
+    rules: {
+      'llm-corpus/no-direct-worker-spawn': 'error',
+    },
+  },
+
+  // Test files — relax some rules.
+  {
+    files: ['tests/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
+    rules: {
+      'llm-corpus/no-forbidden-network-imports': 'off',
+      'llm-corpus/no-direct-worker-spawn': 'off',
+      'llm-corpus/no-process-exit-in-libs': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+
+  // Lint fixtures — must NOT trigger lint errors during test setup.
+  {
+    files: ['tests/lint-fixtures/**/*.ts'],
+    rules: {
+      'llm-corpus/no-forbidden-network-imports': 'off',
+    },
+  },
+];
