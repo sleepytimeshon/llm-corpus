@@ -5,11 +5,16 @@
 //
 // Pattern (mirrored across the four resource handlers):
 //   1. capture startTime + requestId
-//   2. signal.throwIfAborted()
-//   3. invoke storage adapter
-//   4. on Result.ok → safeParse payload → emit success → return contents
-//   5. on Result.err(IndexLockedError) → emit index_locked → throw McpError(-32011)
-//   6. on safeParse failure → emit error → throw McpError(-32603)
+//   2. wrap body in try/catch (Constitution XIII telemetry-or-die)
+//   3. signal.throwIfAborted()
+//   4. invoke storage adapter
+//   5. on Result.ok → safeParse payload → emit success → return contents
+//   6. on Result.err(IndexLockedError) → emit index_locked → throw McpError(-32011)
+//   7. on safeParse failure → emit error → throw McpError(-32603)
+//   8. catch any non-McpError throw (adapter re-throw on non-busy error,
+//      AbortError, etc.) → emit error → throw McpError(-32603). McpError
+//      throws bubble through unchanged because their emit already happened
+//      on the path that produced them.
 //
 // Telemetry is emitted on every completion path (Constitution XIII).
 
@@ -36,53 +41,78 @@ export async function manifestHandler(
 ): Promise<ResourceReadResult> {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
-  signal.throwIfAborted();
+  try {
+    signal.throwIfAborted();
 
-  const result = await buildManifest(signal);
+    const result = await buildManifest(signal);
 
-  if (result.ok) {
-    const validated = ManifestPayload.safeParse(result.value);
-    if (!validated.success) {
+    if (result.ok) {
+      const validated = ManifestPayload.safeParse(result.value);
+      if (!validated.success) {
+        await emitResourceRead({
+          resource_uri: 'corpus://manifest',
+          result: 'error',
+          duration_ms: Date.now() - startTime,
+          request_id: requestId,
+        });
+        throw new McpError(-32603, 'Internal error', {
+          validation_issues: validated.error.issues,
+        });
+      }
       await emitResourceRead({
         resource_uri: 'corpus://manifest',
-        result: 'error',
+        result: 'success',
         duration_ms: Date.now() - startTime,
         request_id: requestId,
       });
-      throw new McpError(-32603, 'Internal error', {
-        validation_issues: validated.error.issues,
-      });
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(validated.data),
+          },
+        ],
+      };
     }
+
+    // result is Err(IndexLockedError) — adapter contract limits the error union
+    // to IndexLockedError per contracts/resource-manifest.md.
     await emitResourceRead({
       resource_uri: 'corpus://manifest',
-      result: 'success',
+      result: 'index_locked',
       duration_ms: Date.now() - startTime,
       request_id: requestId,
     });
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'application/json',
-          text: JSON.stringify(validated.data),
-        },
-      ],
-    };
+    throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
+      retriable: true,
+      retry_after_ms: 250,
+      uri,
+    });
+  } catch (caught) {
+    // McpError throws have already emitted their own telemetry on the path
+    // that produced them — re-throw without double-emitting.
+    if (caught instanceof McpError) {
+      throw caught;
+    }
+    // Constitution XIII (telemetry-or-die): any other throw — adapter
+    // re-throwing a non-busy error (JSON.parse, fsp.readFile, etc.), an
+    // AbortError, or any unexpected exception — must emit a resource.read
+    // event before propagating.
+    await emitResourceRead({
+      resource_uri: 'corpus://manifest',
+      result: 'error',
+      duration_ms: Date.now() - startTime,
+      request_id: requestId,
+    });
+    const message =
+      caught instanceof Error ? caught.message : String(caught);
+    throw new McpError(
+      -32603,
+      'Internal error reading resource: ' + message,
+      { uri },
+    );
   }
-
-  // result is Err(IndexLockedError) — adapter contract limits the error union
-  // to IndexLockedError per contracts/resource-manifest.md.
-  await emitResourceRead({
-    resource_uri: 'corpus://manifest',
-    result: 'index_locked',
-    duration_ms: Date.now() - startTime,
-    request_id: requestId,
-  });
-  throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
-    retriable: true,
-    retry_after_ms: 250,
-    uri,
-  });
 }
 
 /**
