@@ -18,6 +18,28 @@ export type { BuildMcpServerOptions, BuiltMcpServer } from './mcp-server.js';
 export { corpusFindHandler } from './corpus-find-tool.js';
 export type { CorpusFindHandler } from './corpus-find-tool.js';
 export {
+  emitResourceRead,
+  MCP_ERROR_CODES,
+  SEVERITY_MAP,
+} from './resource-telemetry.js';
+export type { EmitResourceReadInput } from './resource-telemetry.js';
+export {
+  manifestHandler,
+  registerManifestResource,
+} from './resource-manifest-handler.js';
+export {
+  taxonomyHandler,
+  registerTaxonomyResource,
+} from './resource-taxonomy-handler.js';
+export {
+  documentHandler,
+  registerDocumentResource,
+} from './resource-document-handler.js';
+export {
+  recentHandler,
+  registerRecentResource,
+} from './resource-recent-handler.js';
+export {
   CorpusFindInput,
   CorpusFindOutput,
   SearchFilter,

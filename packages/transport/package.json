@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/storage": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "undici": "^6.19.0",
     "zod": "^3.23.0",
