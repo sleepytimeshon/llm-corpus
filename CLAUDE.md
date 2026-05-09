@@ -1,9 +1,26 @@
 <!-- SPECKIT START -->
-Active feature: **001-local-only-mcp-foundation** (SP-001) — implementation complete; merge-ready.
-Plan: [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
-Spec: [specs/001-local-only-mcp-foundation/spec.md](specs/001-local-only-mcp-foundation/spec.md)
+Active feature: **002-mcp-resources** (SP-002) — implementation complete; ready for merge review.
+Plan: [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md)
+Spec: [specs/002-mcp-resources/spec.md](specs/002-mcp-resources/spec.md)
+Tasks: [specs/002-mcp-resources/tasks.md](specs/002-mcp-resources/tasks.md)
+Prior art (merged): [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
+
+## SP-002 surface (what this repo ships now)
+
+The MCP server registers four read-only resources alongside the SP-001 `corpus.find` tool:
+
+| URI | List endpoint | Notes |
+|---|---|---|
+| `corpus://manifest` | `resources/list` | Auto-load annotation. Structural snapshot: doc_count, established_domains, established_tags, last_ingest_timestamp, schema/taxonomy versions. |
+| `corpus://taxonomy` | `resources/list` | Promoted-only (Constitution XV). 4-axis envelope: domains, tags, types, source_types. |
+| `corpus://recent` | `resources/list` | Last N=10 successful ingests, descending timestamp. Failure-lane + trash excluded. N configurable via `[resources.recent].window_size` in config.toml (range 1-100). |
+| `corpus://docs/{id}` | `resources/templates/list` | RFC-6570 template. Per-doc body + frontmatter. The dereferencing target of every `corpus.find` SearchHit URI. |
+
+Every read emits a `resource.read` telemetry event (success AND every failure path). New error envelopes: `-32002 server_initializing`, `-32010 document_not_found`, `-32011 index_locked` (retriable). The empty-baseline schema migration creates `documents` and `taxonomy_terms` SQLite tables; SP-003+ populates them.
+
+SC-010 read-only enforcement is by construction: the `no-writes-from-resource-handlers` ESLint rule scopes the four resource handlers and four storage adapters; any INSERT/UPDATE/DELETE/CREATE/DROP/ALTER in `.exec()`/`.run()` or any `fs.write*`/`fs.append*`/`fs.mkdir*` call hard-fails the build.
 
 # Working in this repo
 
@@ -56,13 +73,14 @@ Feature lifecycle uses spec-kit slash commands:
 - TypeScript 5.5+ strict mode; Node.js 20+ runtime.
 - npm workspaces monorepo under `packages/`.
 - vitest for unit + integration testing.
-- ESLint 9 flat config with five custom rules:
+- ESLint 9 flat config with six custom rules:
   - `no-forbidden-network-imports` — NFR-001 lint scope.
   - `no-process-exit-in-libs` — Constitution XI.
   - `paths-from-resolver-only` — Constitution XIV.
   - `no-direct-worker-spawn` — Constitution XII / NFR-002a.
   - `no-shell-string-exec` — Constitution XII.
-- `@modelcontextprotocol/sdk`, `undici`, `zod`, `better-sqlite3`, `sqlite-vec`.
+  - `no-writes-from-resource-handlers` — SC-010 / Constitution III. Scoped to the four SP-002 resource-handler files and four storage adapters.
+- `@modelcontextprotocol/sdk`, `undici`, `zod`, `better-sqlite3`, `sqlite-vec`, `js-yaml`, `@iarna/toml`.
 
 ## Extending
 
@@ -70,7 +88,8 @@ Feature lifecycle uses spec-kit slash commands:
 - New native addon: update the allowlist in `build/verify-native-addons.ts` AND cite the allowlist promotion in the feature plan's Complexity Tracking if the addon is not in `{better-sqlite3, sqlite-vec}`.
 - New custom lint rule: add under `tools/eslint-rules/`, register in `eslint.config.js`, add a fixture suite under `tests/lint-fixtures/`.
 - New egress primitive (uncommon): patch in `packages/transport/src/egress-hook.ts`, add a test pair (block + loopback passthrough), update `contracts/egress-hook-api.md`.
-- New telemetry event class: add Zod schema in `packages/contracts/src/telemetry.ts`, document in `contracts/telemetry-egress-events.md`.
+- New telemetry event class: add Zod schema in `packages/contracts/src/telemetry.ts` as a variant of the `TelemetryEvent` discriminated union, document in a new `contracts/telemetry-{class}-events.md`. SP-002 added `resource.read`.
+- New MCP resource: add a Zod payload schema in `packages/contracts/src/resource-schemas.ts`, a read-only adapter in `packages/storage/`, a handler in `packages/transport/src/resource-{name}-handler.ts`, register via `BuiltMcpServer.registerStaticResource()` (or `registerResourceTemplate()` for URI templates) inside `startMcpServer()`. The `no-writes-from-resource-handlers` rule MUST be scoped to the new handler + adapter in `eslint.config.js`.
 
 ## Honesty rules (Constitution XVI)
 
