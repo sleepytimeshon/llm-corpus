@@ -44,13 +44,75 @@ export async function documentHandler(
 ): Promise<ResourceReadResult> {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
-  signal.throwIfAborted();
+  try {
+    signal.throwIfAborted();
 
-  const result = await fetchDocument(docId, signal);
+    const result = await fetchDocument(docId, signal);
 
-  if (result.ok) {
-    const validated = DocumentPayload.safeParse(result.value);
-    if (!validated.success) {
+    if (result.ok) {
+      const validated = DocumentPayload.safeParse(result.value);
+      if (!validated.success) {
+        await emitResourceRead({
+          resource_uri: 'corpus://docs/*',
+          doc_id: docId,
+          result: 'error',
+          duration_ms: Date.now() - startTime,
+          request_id: requestId,
+        });
+        throw new McpError(-32603, 'Internal error', {
+          validation_issues: validated.error.issues,
+          uri,
+        });
+      }
+      await emitResourceRead({
+        resource_uri: 'corpus://docs/*',
+        doc_id: docId,
+        result: 'success',
+        duration_ms: Date.now() - startTime,
+        request_id: requestId,
+      });
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(validated.data),
+          },
+        ],
+      };
+    }
+
+    // Failure paths — emit telemetry then throw McpError.
+    const e = result.error;
+    if (e instanceof DocumentNotFoundError) {
+      await emitResourceRead({
+        resource_uri: 'corpus://docs/*',
+        doc_id: docId,
+        result: 'document_not_found',
+        duration_ms: Date.now() - startTime,
+        request_id: requestId,
+      });
+      throw new McpError(
+        MCP_ERROR_CODES.document_not_found,
+        'document_not_found',
+        { uri, doc_id: docId },
+      );
+    }
+    if (e instanceof IndexLockedError) {
+      await emitResourceRead({
+        resource_uri: 'corpus://docs/*',
+        doc_id: docId,
+        result: 'index_locked',
+        duration_ms: Date.now() - startTime,
+        request_id: requestId,
+      });
+      throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
+        retriable: true,
+        retry_after_ms: 250,
+        uri,
+      });
+    }
+    if (e instanceof IntegrityLossError) {
       await emitResourceRead({
         resource_uri: 'corpus://docs/*',
         doc_id: docId,
@@ -59,59 +121,13 @@ export async function documentHandler(
         request_id: requestId,
       });
       throw new McpError(-32603, 'Internal error', {
-        validation_issues: validated.error.issues,
+        reason: 'integrity_loss',
+        requested_id: e.data.requestedId,
+        frontmatter_id: e.data.frontmatterFoundId,
         uri,
       });
     }
-    await emitResourceRead({
-      resource_uri: 'corpus://docs/*',
-      doc_id: docId,
-      result: 'success',
-      duration_ms: Date.now() - startTime,
-      request_id: requestId,
-    });
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'application/json',
-          text: JSON.stringify(validated.data),
-        },
-      ],
-    };
-  }
-
-  // Failure paths — emit telemetry then throw McpError.
-  const e = result.error;
-  if (e instanceof DocumentNotFoundError) {
-    await emitResourceRead({
-      resource_uri: 'corpus://docs/*',
-      doc_id: docId,
-      result: 'document_not_found',
-      duration_ms: Date.now() - startTime,
-      request_id: requestId,
-    });
-    throw new McpError(
-      MCP_ERROR_CODES.document_not_found,
-      'document_not_found',
-      { uri, doc_id: docId },
-    );
-  }
-  if (e instanceof IndexLockedError) {
-    await emitResourceRead({
-      resource_uri: 'corpus://docs/*',
-      doc_id: docId,
-      result: 'index_locked',
-      duration_ms: Date.now() - startTime,
-      request_id: requestId,
-    });
-    throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
-      retriable: true,
-      retry_after_ms: 250,
-      uri,
-    });
-  }
-  if (e instanceof IntegrityLossError) {
+    // Defensive — adapter contract precludes other error types.
     await emitResourceRead({
       resource_uri: 'corpus://docs/*',
       doc_id: docId,
@@ -119,22 +135,33 @@ export async function documentHandler(
       duration_ms: Date.now() - startTime,
       request_id: requestId,
     });
-    throw new McpError(-32603, 'Internal error', {
-      reason: 'integrity_loss',
-      requested_id: e.data.requestedId,
-      frontmatter_id: e.data.frontmatterFoundId,
-      uri,
+    throw new McpError(-32603, 'Internal error', { uri });
+  } catch (caught) {
+    // McpError throws have already emitted their own telemetry on the path
+    // that produced them — re-throw without double-emitting.
+    if (caught instanceof McpError) {
+      throw caught;
+    }
+    // Constitution XIII (telemetry-or-die): any other throw — adapter
+    // re-throwing a non-busy error (JSON.parse on tags_json, fsp.readFile on
+    // missing/unreadable body, frontmatter parse error, etc.), AbortError, or
+    // any unexpected exception — must emit a resource.read event before
+    // propagating.
+    await emitResourceRead({
+      resource_uri: 'corpus://docs/*',
+      doc_id: docId,
+      result: 'error',
+      duration_ms: Date.now() - startTime,
+      request_id: requestId,
     });
+    const message =
+      caught instanceof Error ? caught.message : String(caught);
+    throw new McpError(
+      -32603,
+      'Internal error reading resource: ' + message,
+      { uri, doc_id: docId },
+    );
   }
-  // Defensive — adapter contract precludes other error types.
-  await emitResourceRead({
-    resource_uri: 'corpus://docs/*',
-    doc_id: docId,
-    result: 'error',
-    duration_ms: Date.now() - startTime,
-    request_id: requestId,
-  });
-  throw new McpError(-32603, 'Internal error', { uri });
 }
 
 /**

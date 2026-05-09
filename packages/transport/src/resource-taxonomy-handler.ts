@@ -22,51 +22,75 @@ export async function taxonomyHandler(
 ): Promise<ResourceReadResult> {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
-  signal.throwIfAborted();
+  try {
+    signal.throwIfAborted();
 
-  const result = await buildTaxonomy(signal);
+    const result = await buildTaxonomy(signal);
 
-  if (result.ok) {
-    const validated = TaxonomyPayload.safeParse(result.value);
-    if (!validated.success) {
+    if (result.ok) {
+      const validated = TaxonomyPayload.safeParse(result.value);
+      if (!validated.success) {
+        await emitResourceRead({
+          resource_uri: 'corpus://taxonomy',
+          result: 'error',
+          duration_ms: Date.now() - startTime,
+          request_id: requestId,
+        });
+        throw new McpError(-32603, 'Internal error', {
+          validation_issues: validated.error.issues,
+        });
+      }
       await emitResourceRead({
         resource_uri: 'corpus://taxonomy',
-        result: 'error',
+        result: 'success',
         duration_ms: Date.now() - startTime,
         request_id: requestId,
       });
-      throw new McpError(-32603, 'Internal error', {
-        validation_issues: validated.error.issues,
-      });
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(validated.data),
+          },
+        ],
+      };
     }
+
     await emitResourceRead({
       resource_uri: 'corpus://taxonomy',
-      result: 'success',
+      result: 'index_locked',
       duration_ms: Date.now() - startTime,
       request_id: requestId,
     });
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'application/json',
-          text: JSON.stringify(validated.data),
-        },
-      ],
-    };
+    throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
+      retriable: true,
+      retry_after_ms: 250,
+      uri,
+    });
+  } catch (caught) {
+    // McpError throws have already emitted their own telemetry on the path
+    // that produced them — re-throw without double-emitting.
+    if (caught instanceof McpError) {
+      throw caught;
+    }
+    // Constitution XIII (telemetry-or-die): any other throw — adapter
+    // re-throwing a non-busy error, AbortError, or unexpected exception —
+    // must emit a resource.read event before propagating.
+    await emitResourceRead({
+      resource_uri: 'corpus://taxonomy',
+      result: 'error',
+      duration_ms: Date.now() - startTime,
+      request_id: requestId,
+    });
+    const message =
+      caught instanceof Error ? caught.message : String(caught);
+    throw new McpError(
+      -32603,
+      'Internal error reading resource: ' + message,
+      { uri },
+    );
   }
-
-  await emitResourceRead({
-    resource_uri: 'corpus://taxonomy',
-    result: 'index_locked',
-    duration_ms: Date.now() - startTime,
-    request_id: requestId,
-  });
-  throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
-    retriable: true,
-    retry_after_ms: 250,
-    uri,
-  });
 }
 
 /**

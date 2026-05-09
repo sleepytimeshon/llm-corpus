@@ -20,51 +20,75 @@ export async function recentHandler(
 ): Promise<ResourceReadResult> {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
-  signal.throwIfAborted();
+  try {
+    signal.throwIfAborted();
 
-  const result = await buildRecent(signal);
+    const result = await buildRecent(signal);
 
-  if (result.ok) {
-    const validated = RecentPayload.safeParse(result.value);
-    if (!validated.success) {
+    if (result.ok) {
+      const validated = RecentPayload.safeParse(result.value);
+      if (!validated.success) {
+        await emitResourceRead({
+          resource_uri: 'corpus://recent',
+          result: 'error',
+          duration_ms: Date.now() - startTime,
+          request_id: requestId,
+        });
+        throw new McpError(-32603, 'Internal error', {
+          validation_issues: validated.error.issues,
+        });
+      }
       await emitResourceRead({
         resource_uri: 'corpus://recent',
-        result: 'error',
+        result: 'success',
         duration_ms: Date.now() - startTime,
         request_id: requestId,
       });
-      throw new McpError(-32603, 'Internal error', {
-        validation_issues: validated.error.issues,
-      });
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(validated.data),
+          },
+        ],
+      };
     }
+
     await emitResourceRead({
       resource_uri: 'corpus://recent',
-      result: 'success',
+      result: 'index_locked',
       duration_ms: Date.now() - startTime,
       request_id: requestId,
     });
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'application/json',
-          text: JSON.stringify(validated.data),
-        },
-      ],
-    };
+    throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
+      retriable: true,
+      retry_after_ms: 250,
+      uri,
+    });
+  } catch (caught) {
+    // McpError throws have already emitted their own telemetry on the path
+    // that produced them — re-throw without double-emitting.
+    if (caught instanceof McpError) {
+      throw caught;
+    }
+    // Constitution XIII (telemetry-or-die): any other throw — adapter
+    // re-throwing a non-busy error, AbortError, or unexpected exception —
+    // must emit a resource.read event before propagating.
+    await emitResourceRead({
+      resource_uri: 'corpus://recent',
+      result: 'error',
+      duration_ms: Date.now() - startTime,
+      request_id: requestId,
+    });
+    const message =
+      caught instanceof Error ? caught.message : String(caught);
+    throw new McpError(
+      -32603,
+      'Internal error reading resource: ' + message,
+      { uri },
+    );
   }
-
-  await emitResourceRead({
-    resource_uri: 'corpus://recent',
-    result: 'index_locked',
-    duration_ms: Date.now() - startTime,
-    request_id: requestId,
-  });
-  throw new McpError(MCP_ERROR_CODES.index_locked, 'index_locked', {
-    retriable: true,
-    retry_after_ms: 250,
-    uri,
-  });
 }
 
 /**
