@@ -9,7 +9,7 @@ generated: 2026-04-26T00:11:00Z
 generated_by: ProductDevelopment Skill v3.0
 status: accepted
 supersedes: null
-superseded_by: null
+superseded_by: ADR-010
 deciders: ["Shon"]
 date_proposed: 2026-04-26T00:11:00Z
 date_accepted: 2026-04-26T00:35:00Z
