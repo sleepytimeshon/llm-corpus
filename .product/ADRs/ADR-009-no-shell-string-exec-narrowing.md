@@ -78,7 +78,7 @@ The rule's import-tracking is local-scope per source file, which is sufficient b
 
 **Negative:**
 - The rule is more complex (import-tracking AST work). More LOC, more test surface
-- A future contributor who imports `child_process` under an unusual alias (e.g., `import * as nope from 'child_process'`) and then assigns `const exec = nope.exec` to a local variable would bypass the rule — the import-tracking doesn't follow re-bindings. Mitigation: code review + the existing `runTool`-required pattern for any subprocess work
+- **Variable-rebinding gap (known limitation):** if a contributor writes `import * as cp from 'child_process'; const sneak = cp.exec; sneak('cmd')`, the rule will not flag the `sneak('cmd')` call. AST-only rules without taint analysis cannot follow value flow through assignments. Same gap for `const { exec } = require('child_process')` destructuring at runtime if not via the static `ImportDeclaration` AST shape. Mitigation: (a) code review for any subprocess-adjacent diff; (b) the existing `runTool`-required pattern means non-`runTool` subprocess work is already a review red flag; (c) the egress hook in `packages/transport/src/egress-hook.ts` blocks the actual outbound network call regardless, so a smuggled `child_process.exec('curl ...')` would still fail at runtime
 - We have widened the surface where future allowlisted native addons (sqlite-vec etc.) could plausibly add a method named `exec` and silently bypass the rule. Mitigation: ADR-001's native-addon allowlist gates new addons, and any new addon's API surface should be reviewed against this rule when added
 
 **Neutral:**
