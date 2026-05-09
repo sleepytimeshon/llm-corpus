@@ -98,11 +98,16 @@ const rule = {
           });
           return;
         }
-        if (calleeName === 'exec' && childProcessNamedExec.has(calleeName)) {
+        // Match the call's local binding name against tracked
+        // child_process.exec imports — covers both `import { exec } from
+        // 'child_process'` (local name 'exec') AND `import { exec as foo }
+        // from 'child_process'` (local name 'foo'). A redundant
+        // `calleeName === 'exec'` guard would have let the alias slip.
+        if (childProcessNamedExec.has(calleeName)) {
           context.report({
             node,
             messageId: 'noExec',
-            data: { name: 'exec' },
+            data: { name: calleeName },
           });
         }
       },
