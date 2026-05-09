@@ -5,6 +5,14 @@
 **Status**: Draft
 **Input**: SP-000-lite per ADR-010 (which supersedes ADR-005). Reduced-scope pre-build pilot to set the NFR-008 absolute floor for local-LLM tool-use rate against the corpus, OR formally downgrade NFR-008 to `priority: nice_to_have`. 50-query benchmark on `qwen3:8b` (already pulled on the build environment), single prompt variant initially with one optional iteration cycle if first run lands below N=15. Stratification rubric required: 30 knowledge-grounded queries (60%), 15 general queries (30%), 5 adversarial queries (10%); knowledge-grounded bucket covers ≥3 distinct retrieval patterns (factual lookup, recall-by-context, multi-document synthesis), each with a 1-sentence operational definition + 2 worked examples per Architect's PR #5 review. Binary exit constraint preserved verbatim from ADR-005: commit final N to `decisions.jsonl` as a new D-NNN entry, OR formal downgrade of NFR-008 to `nice_to_have` priority, OR formal escalation to full SP-000 (per ADR-005 alternative 1 with both spec'd models). Personal-scale floor framing required throughout. Sequencing: SP-000-lite runs after SP-002 (PR #4 merged) and before SP-003 (ingest work). Substrate exercised: SP-002's `corpus.find` MCP tool + four `corpus://` resources (manifest, taxonomy, recent, docs/{id}). Constitutional anchors: Principle XIII (telemetry-or-die — harness emits `nfr_008_pilot` events), Principle XVI (validation honesty — personal-scale floor framing). Anti-goal anchor: AG-005 (this is NOT the OOS-012 labeled retrieval evaluation harness; this is tool-use rate measurement on real personal data).
 
+## Clarifications
+
+### Session 2026-05-09
+
+- Q: Seed corpus substrate (Q1) → A: SUB-OPTION A — Curated sampler of ~32 PDFs spanning Books (4), Writing-style references (8), and Modeling domain (~20 across AFV/Aircraft/Workbench/Reference). See `## Substrate File List` for explicit paths. Conversion via `pdftotext` (fast, structure-loss acceptable; "good enough" quality bar). Russian-language material excluded; self-written content excluded; binary `.azw.md` excluded.
+- Q: Query mining source (Q2) → A: B+C blend with bookmarks topic-cross-check. 30 knowledge-grounded queries mined from `~/.claude/MEMORY/WORK/` PRD bodies for question-shaped language, with topic-coverage validated against Shon's bookmarks file. 15 general queries hand-crafted by Shon (NOT corpus-grounded; tests tool-use discrimination). 5 adversarial queries hand-crafted by Shon (close to corpus topics but should NOT trigger `corpus.find`; tests false-positive resistance).
+- Q: Retrieval-pattern operational definitions (Q3) → A: Engineer authors DRAFT definitions; Shon ratifies in PR review. DRAFT definitions captured in `## Retrieval Pattern Operational Definitions` below.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -86,55 +94,142 @@ Whatever N the pilot commits (or whatever downgrade/escalation it triggers), the
 - **FR-PILOT-007**: At pilot resolution, exactly one of three terminal artifacts MUST be produced: (a) a new `decisions.jsonl` D-NNN entry committing the final N; OR (b) a `decisions.jsonl` entry formally downgrading NFR-008 from `priority: should` to `priority: nice_to_have`; OR (c) a `decisions.jsonl` entry formally escalating to full SP-000 per ADR-005 alternative 1.
 - **FR-PILOT-008**: The terminal artifact (whichever of FR-PILOT-007 (a)/(b)/(c) applies) MUST contain explicit personal-scale qualifier text identifying both the model (`qwen3:8b`) and the substrate (Shon's personal knowledge-work corpus). Industry-standard phrasing is FORBIDDEN per Constitution Principle XVI.
 - **FR-PILOT-009**: SP-000-lite MUST NOT introduce a labeled retrieval evaluation harness, hit-rate metric, or relevance-judged dataset (per AG-005 / OOS-012). The pilot measures *tool invocation rate*, not *retrieval quality*. Any extension toward retrieval-quality scoring is forbidden in this spec's scope.
-- **FR-PILOT-010**: The seed corpus exercised by the pilot MUST be a real on-disk substrate (not synthetic / not the empty SP-001 corpus). The specific source of the seed corpus is unresolved; see Q1 below.
-- **FR-PILOT-011**: The 30 knowledge-grounded queries MUST be sourced from material that genuinely tests recall against the seed corpus (i.e., the queries must have answers in the corpus). The query mining source is unresolved; see Q2 below.
-- **FR-PILOT-012**: The operational definitions of the three retrieval patterns (`factual_lookup`, `recall_by_context`, `multi_doc_synthesis`) MUST be ratified by Shon before pilot run. The Engineer MAY author DRAFT definitions; ratification is not delegable. See Q3 below.
+- **FR-PILOT-010**: The seed corpus exercised by the pilot IS a curated sampler of ~32 PDFs (4 Books + 8 Writing-style references + ~20 Modeling-domain references) drawn from `~/Documents/Personal/`. PDF→text conversion uses `pdftotext` (structure-loss acceptable per Shon's "good enough" quality bar). Excluded: Russian-language material; all self-written content (Practical Dharma, theravada-eightfold-path, secular-dharma-foundations, The Long Shout, Tank & AFV Enthusiast); binary `.azw.md` Kindle artifacts; Family Shared / Claude Shared / Career / Backups subtrees. Explicit file paths enumerated in `## Substrate File List` below.
+- **FR-PILOT-011**: The 30 knowledge-grounded queries MUST be mined from `~/.claude/MEMORY/WORK/` PRD bodies (extracting question-shaped language) AND topic-cross-checked against Shon's bookmarks file (path supplied at harness-implementation time) for topic-coverage validation. The 15 general queries and 5 adversarial queries MUST be hand-crafted by Shon: general queries are NOT corpus-grounded (test tool-use discrimination), adversarial queries are *close to* corpus topics but should NOT trigger `corpus.find` (test false-positive resistance).
+- **FR-PILOT-012**: The operational definitions of the three retrieval patterns (`factual_lookup`, `recall_by_context`, `multi_doc_synthesis`) are authored as DRAFT in `## Retrieval Pattern Operational Definitions` below by the Engineer. Shon ratifies the DRAFT in the PR review walkthrough. Running the pilot harness against unratified definitions is FORBIDDEN.
 
-### Open Questions Requiring User Decisions
+## Retrieval Pattern Operational Definitions
 
-The following three areas are deliberately left unresolved at spec-scaffolding time. These decisions are not pre-decided by ADR-010 and require user input via `/speckit-clarify` (separate Engineer invocation) before the pilot harness can be implemented:
+DRAFT (authored by Engineer in `/speckit-clarify` Session 2026-05-09; pending Shon's ratification in PR review walkthrough). Each definition is exactly one sentence and is followed by 2 worked examples drawn from the curated sampler substrate. A reviewer of pilot output MUST be able to classify any query into exactly one of these three buckets using only the definition + examples; ambiguous classifications indicate a definition defect that MUST be repaired before pilot run.
 
-#### [NEEDS CLARIFICATION: Q1] Seed corpus substrate
+### `factual_lookup`
 
-**What we need to know**: Which on-disk corpus does the pilot exercise as its retrieval substrate?
+**Definition**: A query whose correct answer is a single discrete fact (name, number, date, label, single attribute) that appears verbatim or near-verbatim in exactly one source document, retrievable without combining information across documents and without contextual disambiguation.
 
-**Why it matters**: The N value is a function of the substrate. A corpus of llm-corpus's own architecture docs produces different tool-invocation behavior than a corpus of mixed personal knowledge-work content; both produce different behavior from a corpus of heterogeneous codebases. The personal-scale floor framing in Constitution Principle XVI requires identifying the substrate explicitly.
+**Worked Examples**:
 
-**Suggested options**:
+1. *"Which manufacturer produced the M4A1 Sherman variants documented as 'Pacific Car & Foundry M4A1s'?"* — Answer ("Pacific Car & Foundry") is a single string lifted from one Sherman variant PDF; no disambiguation, no synthesis.
+2. *"In 'Concise Writing,' what is the rule about the word 'really'?"* — Answer is a single rule statement located in one writing-style PDF; pure single-doc extraction.
 
-| Option | Substrate | Implication |
-|--------|-----------|-------------|
-| A | llm-corpus's own architecture/spec docs (`docs/`, `.product/`, `.specify/memory/`, ARCHITECTURE-FINAL.md, etc.) | Self-referential; small substrate (~50-100 docs); pilot signal limited to "can the LLM use the corpus to answer questions about the corpus." Tightest scope; closest to reproducible. |
-| B | `~/.claude/MEMORY/WORK/` PRD bodies (per ADR-010 §Decision query construction note) | Council-recommended for query mining; substrate is real personal knowledge-work content; size depends on PRD count at pilot time. Larger substrate; closer to the production use case. |
-| C | Heterogeneous slice of `~/Projects/` (multiple repos / multiple domains) | Highest realism; broadest substrate; most variance in document structure. Hardest to characterize for the personal-scale qualifier; most representative of Shon's actual usage. |
+### `recall_by_context`
 
-#### [NEEDS CLARIFICATION: Q2] Query mining source for the 30 knowledge-grounded queries
+**Definition**: A query whose correct answer requires the LLM to first identify *which* document is relevant (because the user's phrasing does not name the document directly) and then extract the answer from that disambiguated document, but where the answer itself still lives in a single source once the right document is identified.
 
-**What we need to know**: Where do the 30 knowledge-grounded queries come from?
+**Worked Examples**:
 
-**Why it matters**: The knowledge-grounded queries must have answers in the seed corpus, AND they must reflect realistic agent prompts (not contrived test cases). Source choice affects whether the pilot measures realistic tool-use rate or rate-on-curated-easy-cases.
+1. *"What does Coates argue about the body in his book-length letter to his son?"* — User does not name `Between_the_World_and_Me`; the LLM must recognize the description ("book-length letter to his son" / "the body") as identifying that book, then answer from it.
+2. *"Where do I find the Tamiya paint mix recipes for German armor?"* — User does not name `Tamiya Paint Mixes.pdf` or `DAK Painting Guide…`; the LLM must disambiguate between two plausible Workbench-domain references before answering.
 
-**Suggested options**:
+### `multi_doc_synthesis`
 
-| Option | Source | Implication |
-|--------|--------|-------------|
-| A | Hand-craft from substrate without mining (Engineer/Shon authors all 30 by reading the corpus) | Fully controlled; risk of authoring queries the LLM happens to handle well; lowest realism. |
-| B | Mine from `~/.claude/MEMORY/WORK/` PRD bodies (per ADR-010 Decision text) | Council recommendation; queries reflect Shon's actual past intents; queries paired with corpus answers requires substrate Q1=B (or substrate that includes the PRD-referenced material). |
-| B+C blend | Mine from `~/.claude/MEMORY/WORK/` plus a sampled set from active project session transcripts in `~/Projects/*/docs/SESSION_STATE.md` | Council also supported this blend; covers both retrospective intent (PRDs) and in-flight intent (session state); broader query distribution at the cost of more curation time. |
+**Definition**: A query whose correct answer cannot be assembled from any single source document and instead requires combining information from two or more distinct documents in the corpus, where omitting any one of those documents produces an incomplete or incorrect answer.
 
-#### [NEEDS CLARIFICATION: Q3] Retrieval pattern operational definitions
+**Worked Examples**:
 
-**What we need to know**: What are the binding 1-sentence operational definitions of `factual_lookup`, `recall_by_context`, and `multi_doc_synthesis` for THIS pilot's bucket-labeling purposes?
+1. *"Compare what the Sherman 'Engine Decks' PDF says about engine-bay layout to what the 'M4 Shermans Composites (Hybrid) Small and Large Hatch' PDF says about hull-engine integration."* — Answer requires reading two distinct Sherman variant PDFs and combining them; neither alone satisfies the query.
+2. *"What writing rules across Shon's reference set could explain why the passive voice appears overused in WWII armor descriptions?"* — Answer requires combining `Passive Voice 2024.pdf` (rule) with at least one Modeling reference document (example domain); neither alone constitutes the synthesis.
 
-**Why it matters**: The Architect's PR #5 review made the retrieval-pattern stratification load-bearing. Definitions that are too loose let the same query be labeled either way, which silently re-creates the very query-set skew the rubric was supposed to prevent. The Engineer can draft definitions, but Shon ratifies — these become the binding operational contract for the pilot AND for any SP-000-extended re-run.
+## Substrate File List
 
-**Suggested options**:
+The pilot's seed corpus is exactly the ~32 PDFs enumerated below. The harness-implementation phase (Phase 2 / `/speckit-plan`) consumes this list verbatim — no re-curation required.
+
+### Books (4)
+
+1. `~/Documents/Personal/Books/Between_the_World_and_Me.pdf`
+2. `~/Documents/Personal/Books/How_to_be_an_Antiracist.pdf`
+3. `~/Documents/Personal/Books/The_Autobiography_of_Malcolm_X.pdf`
+4. `~/Documents/Personal/Books/The_Noble_Eightfold_Path.pdf`
+
+### Writing-Style References (8)
+
+5. `~/Documents/Personal/Writing/Using and Fixing Modifiers.pdf`
+6. `~/Documents/Personal/Writing/Clauses 2024  2024.pdf`
+7. `~/Documents/Personal/Writing/Using Pronouns  2024.pdf`
+8. `~/Documents/Personal/Writing/Using the Apostrophe 2024.pdf`
+9. `~/Documents/Personal/Writing/Commonly Confused Words.pdf`
+10. `~/Documents/Personal/Writing/Passive Voice 2024.pdf`
+11. `~/Documents/Personal/Writing/Concise Writing.pdf`
+12. `~/Documents/Personal/Writing/seven_deadly_sins_of_writing.pdf`
+
+### Modeling — Workbench / Technique (5)
+
+13. `~/Documents/Personal/Modeling/Workbench/Realistic German Tank Ammunition - David Parker.pdf`
+14. `~/Documents/Personal/Modeling/Workbench/Working with PE for Armor Modelers_Book.pdf`
+15. `~/Documents/Personal/Modeling/Workbench/Tamiya Paint Mixes.pdf`
+16. `~/Documents/Personal/Modeling/Workbench/DAK Painting Guide for German Vehicles in the Deutsches Afrikakorps, 1941-43.docx` *(DOCX — extracted via `docx2txt` or `pandoc` rather than `pdftotext`; structure-loss acceptable per Q1 quality bar)*
+17. `~/Documents/Personal/Modeling/Workbench/ECL101-IM.pdf`
+
+### Modeling — Reference Library / General (3)
+
+18. `~/Documents/Personal/Modeling/Reference Library/The USA Historical AFV register 4.7 rev1.pdf`
+19. `~/Documents/Personal/Modeling/Reference Library/Complete List of German WWII Equipment by Sd.docx` *(DOCX; same conversion treatment as #16)*
+20. `~/Documents/Personal/Modeling/Reference Library/Dientvorschriften/D1003_1-1942.pdf` *(German service manual — supports multi-doc synthesis with Workbench painting guides)*
+
+### Modeling — AFV / T-34 (2)
+
+21. `~/Documents/Personal/Modeling/AFV/T-34 76/Improving_Tamiya_T34.pdf`
+22. `~/Documents/Personal/Modeling/AFV/T-34 76/Surviving_T-34.76.pdf`
+
+### Modeling — AFV / Sherman (8)
+
+23. `~/Documents/Personal/Modeling/AFV/Sherman/Sherman Engine Decks.pdf`
+24. `~/Documents/Personal/Modeling/AFV/Sherman/M4 Shermans Composites (Hybrid) Small and Large Hatch.pdf`
+25. `~/Documents/Personal/Modeling/AFV/Sherman/M4A4 Sherman Production Variants.pdf`
+26. `~/Documents/Personal/Modeling/AFV/Sherman/British M3, M3A2, M3A3 and M3A5 Grants.pdf`
+27. `~/Documents/Personal/Modeling/AFV/Sherman/Pacific Car & Foundry M4A1s.pdf`
+28. `~/Documents/Personal/Modeling/AFV/Sherman/Sherman Firefly Tanks.pdf`
+29. `~/Documents/Personal/Modeling/AFV/Sherman/M4A1 Shermans.pdf`
+30. `~/Documents/Personal/Modeling/AFV/Sherman/Sherman 75mm Turrets.pdf`
+
+### Modeling — Reference Library / Magazine (2)
+
+31. `~/Documents/Personal/Modeling/Reference Library/AFV Modeller/AFV Modeller 050.pdf`
+32. `~/Documents/Personal/Modeling/Reference Library/AFV Modeller/AFV Modeller 080.pdf`
+
+**Total**: 32 documents (30 PDFs + 2 DOCX, treated uniformly under the "good enough" PDF→text bar).
+
+**Aircraft note**: The `~/Documents/Personal/Modeling/Aircraft/` subtree contains only `.jpg`/`.png` image files — no PDFs/DOCX. Aircraft domain coverage is therefore intentionally absent from the substrate; the AFV/Sherman/T-34/Workbench/Reference selection provides sufficient Modeling-domain coverage for ≥3-pattern stratification.
+
+**Curation criteria applied**:
+- Sherman family selected for breadth (manufacturer variants, turret types, sub-types) — supports `recall_by_context` and `multi_doc_synthesis` queries.
+- T-34 entries selected because both have full PDFs (other Soviet armor subdirs are image-only).
+- Workbench entries selected to cover painting (Tamiya, DAK), technique (PE work), and ammunition reference — distinct topic clusters.
+- Dientvorschriften D1003 included as a non-English (German) primary-source manual for genuine multi-doc-synthesis pairings with English secondary sources.
+- AFV Modeller magazine issues 050 + 080 selected as cross-cutting magazine content (multiple short articles per issue) — useful for `recall_by_context` queries that span armor topics.
+
+## Open Questions Requiring User Decisions (Round 2)
+
+The Engineer's `/speckit-clarify` workflow surfaced two additional underspecified areas during integration of Q1/Q2/Q3. These do NOT block scaffold-level spec validation but DO block `/speckit-plan` (Phase 2). Resolve via a follow-up `/speckit-clarify` invocation before invoking `/speckit-plan`.
+
+### [NEEDS CLARIFICATION: Q4] Pilot-failure semantics for malformed-tool-call edge case
+
+**What we need to know**: When the LLM emits a malformed `corpus.find` tool call (schema violation on arguments), the Edge Cases section currently states it is "counted as a non-invocation in the per-bucket tally." But two distinct downstream consequences are unspecified: (a) does the harness *retry* the same query with a corrective system message before counting non-invocation, or count non-invocation on first malformed attempt? (b) is there a maximum tolerated *malformed-call rate* across the 50 queries above which the pilot is declared inconclusive (forcing escalation to full SP-000) regardless of N?
+
+**Why it matters**: If iteration 1 produces (say) N=12 successful invocations and 18 malformed attempts in the knowledge-grounded bucket, the literal reading is "fail (N<15), proceed to iteration 2 with revised prompt." But that reading conflates *prompt-template defects* (which iteration 2 is meant to address) with *systemic JSON-emission unreliability* (which a prompt-template tweak cannot fix and which signals "qwen3:8b can't do this at any prompt"). The pilot's binary exit interpretation depends on this distinction.
+
+**Suggested options** (Engineer recommendation: **C — single-shot count, AND record malformed-call rate as a secondary diagnostic in the summary, with a soft threshold (e.g., >10/30 in knowledge-grounded) flagged but not auto-converted to escalation**):
 
 | Option | Approach | Implication |
 |--------|----------|-------------|
-| A | Engineer authors DRAFT definitions in `/speckit-clarify`; Shon reviews and ratifies inline | Fastest; Engineer drafts based on retrieval-quality literature norms (factual_lookup = single-doc fact extraction, recall_by_context = retrieval requiring contextual disambiguation, multi_doc_synthesis = answer requires combining ≥2 docs); Shon ratifies or amends. |
-| B | Shon authors definitions from his own intuition; Engineer captures verbatim | Highest fidelity to Shon's mental model; slower; risks definitions that don't ground in published retrieval-evaluation conventions. |
-| C | Adopt definitions from a cited published source (e.g., BEIR / MS MARCO / Berkeley FCL retrieval taxonomy) and bind them by citation | Most defensible against future re-pilot drift; requires Shon to ratify the chosen source; introduces external dependency on the cited taxonomy. |
+| A | Single-shot count only; malformed-call rate ignored entirely | Simplest; but loses signal that distinguishes prompt defect from model defect. |
+| B | Retry malformed calls once with a corrective system message before counting non-invocation | Closer to production agent behavior; but inflates apparent N if the correction succeeds easily; complicates reproducibility. |
+| C | Single-shot count for N; record malformed-call rate as a secondary diagnostic; soft threshold flagged but binary exit remains parameterized on N alone | Engineer recommendation; preserves binary exit simplicity while surfacing the prompt-vs-model signal for human interpretation. |
+| D | Hard threshold: if malformed-call rate exceeds X% in knowledge-grounded bucket, force escalation regardless of N | Most conservative; but X is itself an unjustified parameter at this stage. |
+
+### [NEEDS CLARIFICATION: Q5] Telemetry log on-disk format and rotation policy
+
+**What we need to know**: FR-PILOT-005 binds the harness to emit `nfr_008_pilot` events conformant to Constitution Principle XIII, but does not specify (a) the on-disk file format (JSONL stream vs. single JSON array vs. SQLite table) for the 50 events per iteration; (b) the file's location under `Paths.*` (specifically: under which named `Paths.*` key — `Paths.LEDGERS`, a new `Paths.PILOT_TELEMETRY`, or co-located with the eventual D-NNN entry); (c) rotation/retention policy (the pilot may run twice per ADR-010's iteration cap → 100 events; do iteration-1 events get retained or overwritten when iteration 2 runs?).
+
+**Why it matters**: Affects harness implementation (Phase 2) directly. If iteration 1 events are overwritten by iteration 2, the eventual D-NNN entry rationale loses the "we tried this prompt and it produced these counts" forensic record. If retention is mandatory, the harness needs a directory layout with iteration-suffixed filenames. If `Paths.*` doesn't have a key for pilot telemetry, one must be added before the harness is implemented (cross-cuts SP-001 path-resolver code that lives in main).
+
+**Suggested options** (Engineer recommendation: **JSONL stream + new `Paths.PILOT_TELEMETRY` key + iteration-suffixed retention**):
+
+| Option | Format / Location / Retention | Implication |
+|--------|-------------------------------|-------------|
+| A | JSONL stream; under `Paths.LEDGERS/pilot-telemetry/`; iteration-suffixed filenames; retain both iterations | Clean separation; reuses existing `Paths.LEDGERS` key; matches Constitution Principle XIII conventions. |
+| B | JSONL stream; under new `Paths.PILOT_TELEMETRY` key; iteration-suffixed filenames; retain both iterations | Engineer recommendation; isolates pilot telemetry from production ledgers; cleanest for AG-005-bound future re-pilots. |
+| C | SQLite table inside an existing ledger DB | More queryable; but cross-cuts ledger schema and introduces migration burden for a one-shot pilot. |
+| D | Single JSON array file overwritten on each iteration | Simplest; but loses iteration-1 forensic record; violates the "rationale for D-NNN entry" requirement implicitly. |
 
 ### Key Entities
 
