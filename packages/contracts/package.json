@@ -30,9 +30,29 @@
     "./run-tool": {
       "types": "./dist/run-tool.d.ts",
       "default": "./dist/run-tool.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "default": "./dist/version.js"
+    },
+    "./yaml": {
+      "types": "./dist/yaml.d.ts",
+      "default": "./dist/yaml.js"
+    },
+    "./markdown-frontmatter": {
+      "types": "./dist/markdown-frontmatter.d.ts",
+      "default": "./dist/markdown-frontmatter.js"
+    },
+    "./resource-schemas": {
+      "types": "./dist/resource-schemas.d.ts",
+      "default": "./dist/resource-schemas.js"
     }
   },
   "dependencies": {
+    "js-yaml": "^4.1.0",
     "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
   }
 }

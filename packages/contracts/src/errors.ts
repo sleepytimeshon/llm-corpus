@@ -88,3 +88,121 @@ export class SchemaValidationError extends Error {
     }
   }
 }
+
+// ============================================================================
+// SP-002 — MCP resource error classes (T004 / T024)
+// ============================================================================
+
+/**
+ * Returned (as Result.err) by document-adapter when a `corpus://docs/{id}`
+ * read finds no matching row in `documents` with `status = 'success'`.
+ * Maps to MCP error code -32010 at the handler boundary.
+ *
+ * See specs/002-mcp-resources/contracts/mcp-resources-api.md §"Error contracts"
+ * and contracts/resource-document.md.
+ */
+export class DocumentNotFoundError extends Error {
+  readonly code = 'DOCUMENT_NOT_FOUND' as const;
+  override readonly name = 'DocumentNotFoundError';
+  readonly data: { docId: string };
+
+  constructor(data: { docId: string }) {
+    super(`Document not found: id="${data.docId}".`);
+    this.data = data;
+  }
+}
+
+/**
+ * Returned (as Result.err) by any resource adapter when a SQLite read
+ * exhausts the WAL `busy_timeout` PRAGMA window (default 5000 ms).
+ * Maps to MCP error code -32011 at the handler boundary; retriable.
+ *
+ * See contracts/mcp-resources-api.md §"index_locked envelope" and
+ * contracts/resource-document.md §"Error paths".
+ */
+export class IndexLockedError extends Error {
+  readonly code = 'INDEX_LOCKED' as const;
+  override readonly name = 'IndexLockedError';
+  readonly data: { uri: string };
+
+  constructor(data: { uri: string }) {
+    super(
+      `Index locked while reading "${data.uri}" — SQLite WAL writer contention exhausted busy_timeout. Retriable.`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Returned (as Result.err) by document-adapter when the body file's
+ * frontmatter `id` does NOT match the requested URI's `{id}` path component.
+ * This is a corpus-integrity bug per Constitution VIII (transactional
+ * index ↔ document store), NOT a user error. Maps to MCP error code
+ * -32603 (Internal error) with severity `error` telemetry.
+ */
+export class IntegrityLossError extends Error {
+  readonly code = 'INTEGRITY_LOSS' as const;
+  override readonly name = 'IntegrityLossError';
+  readonly data: { requestedId: string; frontmatterFoundId: string };
+
+  constructor(data: { requestedId: string; frontmatterFoundId: string }) {
+    super(
+      `Integrity loss: URI id "${data.requestedId}" does not match frontmatter id "${data.frontmatterFoundId}".`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Reserved for SP-004 — thrown when the taxonomy registry fails to parse.
+ * Exported but NOT thrown anywhere in SP-002 (resource handlers read SQLite
+ * directly, not the JSON registry). Declared here so the SP-004 promotion
+ * workflow inherits the error type without a new contracts release.
+ */
+export class TaxonomyParseError extends Error {
+  readonly code = 'TAXONOMY_PARSE_ERROR' as const;
+  override readonly name = 'TaxonomyParseError';
+  readonly data: { source: string; details: string };
+
+  constructor(data: { source: string; details: string }) {
+    super(`Taxonomy parse error in ${data.source}: ${data.details}`);
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown at server boot when `config.toml` contains an out-of-range or
+ * malformed value for a known key (e.g. `[resources.recent] window_size`
+ * outside [1, 100]). Caught at the boot boundary BEFORE `markReady()` —
+ * the server fails to start rather than starting with a bad config.
+ *
+ * See plan.md Decision C, contracts/resource-recent.md §"Window size N".
+ */
+export class ConfigurationError extends Error {
+  readonly code = 'CONFIGURATION_ERROR' as const;
+  override readonly name = 'ConfigurationError';
+  readonly data: { key: string; reason: string };
+
+  constructor(data: { key: string; reason: string }) {
+    super(`Configuration error: ${data.key} — ${data.reason}`);
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown when YAML parsing or markdown-frontmatter splitting fails on a
+ * document body file. Wraps the underlying js-yaml error for context.
+ */
+export class FrontmatterParseError extends Error {
+  readonly code = 'FRONTMATTER_PARSE_ERROR' as const;
+  override readonly name = 'FrontmatterParseError';
+  readonly data: { details: string };
+
+  constructor(data: { details: string }, cause?: unknown) {
+    super(`Frontmatter parse error: ${data.details}`);
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
