@@ -1,7 +1,27 @@
 <!--
 SYNC IMPACT REPORT — llm-corpus Constitution
 
-Version change: (template) → 1.0.0
+Version change: 1.0.0 → 1.0.1 (2026-05-09)
+PATCH bump (per Governance §Versioning): clarification of lint-mechanism behind
+Principle XII via ADR-009. Principle text unchanged; only the `no-shell-string-exec`
+rule's interpretation of "exec" disambiguates by import provenance to avoid false
+positives on better-sqlite3's `Database.exec(SQL)` API. Plans need not satisfy
+anything new — the principle's behavioral surface is the same.
+Linked: ADR-009 (.product/ADRs/ADR-009-no-shell-string-exec-narrowing.md), D-020
+(.product/ledgers/decisions.jsonl).
+
+Modified principles (1.0.0 → 1.0.1): Principle XII gains a "Lint-mechanism note"
+sub-block; principle and rationale text unchanged.
+
+Added/Removed sections (1.0.0 → 1.0.1): none.
+
+Templates updated alongside (1.0.0 → 1.0.1): none required (lint-mechanism note
+is informational; plan/spec/tasks/checklist templates do not reference the lint
+rule's internal disambiguation).
+
+──────────────────────────────────────────────────────────────────────────────
+
+Version change: (template) → 1.0.0 (2026-05-05)
 Initial ratification of the project constitution.
 
 Sources of derivation (all at git tag `pre-speckit-archive`, commit 672c009):
@@ -188,7 +208,7 @@ Subprocess invocation MUST go through a single `runTool(name: string, args: stri
 
 **Rationale:** Architecture §15.12. String-formed shell commands are command-injection vectors and silent-failure points.
 
-**Lint-mechanism note (ADR-009, proposed 2026-05-09):** the `no-shell-string-exec` rule narrows its `exec` name match to `child_process`-bound imports to avoid false positives on `better-sqlite3`'s `Database.exec(SQL)` API (a single-process native method, not a subprocess). `execSync`/`execFileSync` remain unambiguously forbidden as bare identifiers or member-call properties. The principle text above is unchanged; only the lint rule's interpretation of "exec" disambiguates by import provenance. See `.product/ADRs/ADR-009-no-shell-string-exec-narrowing.md`.
+**Lint-mechanism note (ADR-009, 2026-05-09):** the `no-shell-string-exec` rule narrows its `exec` name match to `child_process`-bound imports to avoid false positives on `better-sqlite3`'s `Database.exec(SQL)` API (a single-process native method, not a subprocess). `execSync`/`execFileSync` remain unambiguously forbidden as bare identifiers or member-call properties. The principle text above is unchanged; only the lint rule's interpretation of "exec" disambiguates by import provenance. See `.product/ADRs/ADR-009-no-shell-string-exec-narrowing.md`.
 
 ### XIII. Telemetry-or-Die (NON-NEGOTIABLE)
 
@@ -290,4 +310,4 @@ If a future feature proposal conflicts with one of the 5 anti-goals (`.product/A
 
 ---
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-05 | **Last Amended**: 2026-05-05
+**Version**: 1.0.1 | **Ratified**: 2026-05-05 | **Last Amended**: 2026-05-09
