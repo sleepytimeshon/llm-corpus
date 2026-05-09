@@ -101,17 +101,7 @@ sudo LLM_CORPUS_ROOT_TESTS=1 npm run test:integration:root
 
 ## Performance targets
 
-Targets, not guarantees, per [Constitution Principle XVI](.specify/memory/constitution.md#xvi-validation-honesty):
-
-- Cold-start `tools/list` response: under 200 ms on the primary user's machine.
-- Cold-start `resources/list` response: under 100 ms (static four-resource listing — no DB hit).
-- Per-resource read latency (warm): under 50 ms for manifest/taxonomy/recent, under 100 ms p95 for `corpus://docs/{id}` against documents up to 1 MB.
-- `resource.read` telemetry-event emission: under 1 ms per event.
-- Egress hook overhead: under 1 ms per intercepted call.
-- Build-time native-addon verification: under 5 seconds.
-- Lint scan over pipeline + adapter packages: under 10 seconds.
-
-These targets reflect the design intent; they become guarantees only when a benchmark suite in CI confirms them on the primary user's hardware.
+Design-intent latency targets are documented in [`specs/002-mcp-resources/research.md`](specs/002-mcp-resources/research.md); v1 ships without a CI-confirmed benchmark suite, so per [Constitution Principle XVI](.specify/memory/constitution.md#xvi-validation-honesty) (validation honesty) no numerics are surfaced here.
 
 ## License
 
