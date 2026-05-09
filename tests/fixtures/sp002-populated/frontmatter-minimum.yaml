@@ -1,0 +1,15 @@
+# T029 — v1 minimum frontmatter template (SP-002 commits to this surface).
+# Used by US4 per-document fixture construction in Phases 5+.
+#
+# This is a TEMPLATE — fill in id/source_path/ingest_timestamp/mime_type/hash
+# at fixture-load time, then write the body to <Paths.docs()>/<id>.md.
+#
+# SP-004 will add fields (title, summary, facet_domain, etc.) — the SP-002
+# DocumentFrontmatter Zod schema uses .passthrough() so those fields land
+# without breaking SP-002.
+
+id: doc-ab12cd34
+source_path: /inbox/example.md
+ingest_timestamp: '2026-05-15T14:30:00Z'
+mime_type: text/markdown
+hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855

@@ -1,0 +1,37 @@
+[
+  {
+    "id": "doc-ab12cd34",
+    "uri": "corpus://docs/doc-ab12cd34",
+    "title": "Hybrid Search with FTS5 and sqlite-vec",
+    "snippet": "Hybrid search combines lexical FTS5...",
+    "score": 0.92
+  },
+  {
+    "id": "doc-cd34ef56",
+    "uri": "corpus://docs/doc-cd34ef56",
+    "title": "Ansible Playbook Patterns",
+    "snippet": "Common patterns for Ansible playbooks...",
+    "score": 0.87
+  },
+  {
+    "id": "doc-ef567890",
+    "uri": "corpus://docs/doc-ef567890",
+    "title": "Systemd Unit File Reference",
+    "snippet": "Systemd unit file directives reference...",
+    "score": 0.81
+  },
+  {
+    "id": "doc-12345678",
+    "uri": "corpus://docs/doc-12345678",
+    "title": "Buddhist Meditation Guide",
+    "snippet": "A practical guide to Buddhist meditation...",
+    "score": 0.76
+  },
+  {
+    "id": "doc-87654321",
+    "uri": "corpus://docs/doc-87654321",
+    "title": "NFS Tuning on RHEL 9",
+    "snippet": "NFS performance tuning on RHEL 9...",
+    "score": 0.72
+  }
+]
