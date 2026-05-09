@@ -1,0 +1,10 @@
+{
+  "_comment": "T029 — taxonomy state with 2 promoted domains + 3 promoted tags. All entries state='established'. Loaded by fixture loader into taxonomy_terms table.",
+  "rows": [
+    { "axis": "domain", "term": "devops",   "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "domain", "term": "linux",    "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "ansible",  "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "rhel-9",   "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "systemd",  "state": "established", "established_at": "2026-05-01T00:00:00Z" }
+  ]
+}

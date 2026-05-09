@@ -1,0 +1,12 @@
+{
+  "_comment": "T029 — taxonomy state with 2 promoted + 3 promoted-tags + 2 PROPOSED tags (for SC-005 / Constitution XV exclusion test). Promoted-only filter MUST hide proposed terms from corpus://taxonomy.",
+  "rows": [
+    { "axis": "domain", "term": "devops",        "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "domain", "term": "linux",         "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "ansible",       "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "rhel-9",        "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "systemd",       "state": "established", "established_at": "2026-05-01T00:00:00Z" },
+    { "axis": "tag",    "term": "PROPOSED-tag-a", "state": "proposed", "established_at": null },
+    { "axis": "tag",    "term": "PROPOSED-tag-b", "state": "proposed", "established_at": null }
+  ]
+}
