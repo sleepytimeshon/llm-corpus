@@ -16,11 +16,10 @@ date_accepted: null
 product_type: software
 
 links:
-  decisions_jsonl_id: pending
+  decisions_jsonl_id: D-020
   requirements_gated: []
   roadmap_items_gated: []
   related_adrs: [ADR-001]
-  amends_constitution_principle: XII
 
 reversibility: low
 tags: [lint, constitution, subprocess, sqlite]
