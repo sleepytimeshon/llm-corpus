@@ -7,6 +7,7 @@ import noProcessExitInLibs from './tools/eslint-rules/no-process-exit-in-libs.js
 import pathsFromResolverOnly from './tools/eslint-rules/paths-from-resolver-only.js';
 import noDirectWorkerSpawn from './tools/eslint-rules/no-direct-worker-spawn.js';
 import noShellStringExec from './tools/eslint-rules/no-shell-string-exec.js';
+import noWritesFromResourceHandlers from './tools/eslint-rules/no-writes-from-resource-handlers.js';
 
 const localRulesPlugin = {
   rules: {
@@ -15,6 +16,7 @@ const localRulesPlugin = {
     'paths-from-resolver-only': pathsFromResolverOnly,
     'no-direct-worker-spawn': noDirectWorkerSpawn,
     'no-shell-string-exec': noShellStringExec,
+    'no-writes-from-resource-handlers': noWritesFromResourceHandlers,
   },
 };
 
@@ -107,6 +109,26 @@ export default [
     plugins: { 'llm-corpus': localRulesPlugin },
     rules: {
       'llm-corpus/no-direct-worker-spawn': 'error',
+    },
+  },
+
+  // SC-010 — read-only enforcement on the MCP resource-handler call graph.
+  // Scope: SP-002 resource-handler source files + their storage adapters.
+  // T007 ships the rule as a no-op skeleton; T067 fills the AST scan.
+  {
+    files: [
+      'packages/transport/src/resource-manifest-handler.ts',
+      'packages/transport/src/resource-taxonomy-handler.ts',
+      'packages/transport/src/resource-recent-handler.ts',
+      'packages/transport/src/resource-document-handler.ts',
+      'packages/storage/src/manifest-adapter.ts',
+      'packages/storage/src/taxonomy-adapter.ts',
+      'packages/storage/src/recent-adapter.ts',
+      'packages/storage/src/document-adapter.ts',
+    ],
+    plugins: { 'llm-corpus': localRulesPlugin },
+    rules: {
+      'llm-corpus/no-writes-from-resource-handlers': 'error',
     },
   },
 
