@@ -17,6 +17,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
@@ -55,6 +58,45 @@ export interface BuiltMcpServer {
   markReady: () => void;
   /** Read current readiness — primarily for tests. */
   isReady: () => boolean;
+  /**
+   * SP-002 — register a static MCP resource (e.g. `corpus://manifest`).
+   * Called by Phases 3/4/6 wiring tasks (T038, T046, T066).
+   */
+  registerStaticResource: (
+    descriptor: {
+      uri: string;
+      name: string;
+      description: string;
+      mimeType: string;
+      annotations?: { audience: string[]; priority: number };
+    },
+    handler: (
+      uri: string,
+      signal: AbortSignal,
+    ) => Promise<{
+      contents: Array<{ uri: string; mimeType: string; text: string }>;
+    }>,
+  ) => void;
+  /**
+   * SP-002 — register an RFC-6570 URI template (e.g. `corpus://docs/{id}`)
+   * with a regex-matched read handler. Called by Phase 5 wiring (T057).
+   */
+  registerResourceTemplate: (
+    descriptor: {
+      uriTemplate: string;
+      name: string;
+      description: string;
+      mimeType: string;
+    },
+    pattern: RegExp,
+    handler: (
+      uri: string,
+      captured: string,
+      signal: AbortSignal,
+    ) => Promise<{
+      contents: Array<{ uri: string; mimeType: string; text: string }>;
+    }>,
+  ) => void;
 }
 
 /**
@@ -69,6 +111,7 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
     {
       capabilities: {
         tools: {},
+        resources: {},
       },
       instructions:
         'Local-only corpus knowledge base. The corpus.find tool searches the user-curated document index. ' +
@@ -128,6 +171,7 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
       if (!ready) {
         throw new McpError(SERVER_INITIALIZING_CODE, 'server_initializing', {
           retry_after_ms: COLD_START_RETRY_AFTER_MS,
+          phase: 'bootstrapping',
         });
       }
       if (!previousListHandler) {
@@ -140,13 +184,159 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
     },
   );
 
+  // ============================================================================
+  // T031 — SP-002: resources/list, resources/templates/list, resources/read
+  // ============================================================================
+  // Cold-start gate mirrors tools/list (per SP-001 contract).
+  // Resource registration in Phases 3-6 (T038, T046, T057, T066) populates
+  // the static resource list, the templates list, and the read dispatch
+  // table. T031 wires the request handlers with empty content; Phase 3+
+  // tasks insert their respective handlers via the registry below.
+
+  const staticResources: Array<{
+    uri: string;
+    name: string;
+    description: string;
+    mimeType: string;
+    annotations?: { audience: string[]; priority: number };
+  }> = [];
+  const resourceTemplates: Array<{
+    uriTemplate: string;
+    name: string;
+    description: string;
+    mimeType: string;
+  }> = [];
+  // The dispatch table is populated by Phase 3-6 wiring. It maps either:
+  //   - exact-match URI → handler(uri, signal)
+  //   - regex match → handler(uri, captureGroup1, signal)
+  // The execution order is: static exact-match first, then templates.
+  type StaticResourceHandler = (
+    uri: string,
+    signal: AbortSignal,
+  ) => Promise<{
+    contents: Array<{ uri: string; mimeType: string; text: string }>;
+  }>;
+  type TemplateResourceHandler = (
+    uri: string,
+    captured: string,
+    signal: AbortSignal,
+  ) => Promise<{
+    contents: Array<{ uri: string; mimeType: string; text: string }>;
+  }>;
+
+  const exactDispatch = new Map<string, StaticResourceHandler>();
+  const templateDispatch: Array<{
+    pattern: RegExp;
+    handler: TemplateResourceHandler;
+  }> = [];
+
+  underlying.setRequestHandler(
+    ListResourcesRequestSchema,
+    async () => {
+      if (!ready) {
+        throw new McpError(SERVER_INITIALIZING_CODE, 'server_initializing', {
+          retry_after_ms: COLD_START_RETRY_AFTER_MS,
+          phase: 'bootstrapping',
+        });
+      }
+      return { resources: staticResources };
+    },
+  );
+
+  underlying.setRequestHandler(
+    ListResourceTemplatesRequestSchema,
+    async () => {
+      if (!ready) {
+        throw new McpError(SERVER_INITIALIZING_CODE, 'server_initializing', {
+          retry_after_ms: COLD_START_RETRY_AFTER_MS,
+          phase: 'bootstrapping',
+        });
+      }
+      return { resourceTemplates };
+    },
+  );
+
+  underlying.setRequestHandler(
+    ReadResourceRequestSchema,
+    async (request, extra) => {
+      if (!ready) {
+        throw new McpError(SERVER_INITIALIZING_CODE, 'server_initializing', {
+          retry_after_ms: COLD_START_RETRY_AFTER_MS,
+          phase: 'bootstrapping',
+        });
+      }
+      const { uri } = request.params;
+      const signal =
+        ((extra as { signal?: AbortSignal })?.signal as AbortSignal | undefined) ??
+        new AbortController().signal;
+
+      // Exact-match dispatch first (the three static URIs).
+      const exact = exactDispatch.get(uri);
+      if (exact) {
+        return exact(uri, signal);
+      }
+      // Template dispatch (corpus://docs/{id} regex).
+      for (const { pattern, handler } of templateDispatch) {
+        const match = pattern.exec(uri);
+        if (match && match[1] !== undefined) {
+          return handler(uri, match[1], signal);
+        }
+      }
+      throw new McpError(-32602, 'Unknown resource URI', { uri });
+    },
+  );
+
   const markReady = (): void => {
     ready = true;
   };
 
   const isReady = (): boolean => ready;
 
-  return { server, markReady, isReady };
+  /**
+   * SP-002 — register a static resource alongside its read handler.
+   * Called by the per-resource registration tasks in Phases 3, 4, 6
+   * (T038, T046, T066).
+   */
+  const registerStaticResource = (
+    descriptor: {
+      uri: string;
+      name: string;
+      description: string;
+      mimeType: string;
+      annotations?: { audience: string[]; priority: number };
+    },
+    handler: StaticResourceHandler,
+  ): void => {
+    staticResources.push(descriptor);
+    exactDispatch.set(descriptor.uri, handler);
+  };
+
+  /**
+   * SP-002 — register a URI template (resources/templates/list) alongside
+   * its regex-matched read handler. Called by the per-resource template
+   * task in Phase 5 (T057).
+   */
+  const registerResourceTemplate = (
+    descriptor: {
+      uriTemplate: string;
+      name: string;
+      description: string;
+      mimeType: string;
+    },
+    pattern: RegExp,
+    handler: TemplateResourceHandler,
+  ): void => {
+    resourceTemplates.push(descriptor);
+    templateDispatch.push({ pattern, handler });
+  };
+
+  return {
+    server,
+    markReady,
+    isReady,
+    registerStaticResource,
+    registerResourceTemplate,
+  };
 }
 
 /**
@@ -156,16 +346,55 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
  *
  * NEVER bind HTTP/SSE/TCP from this package — local-only enforcement
  * requires stdio only (US1 AS2, NFR-002).
+ *
+ * SP-002 wires the four read-only resources here (T038, T046, T057, T066)
+ * AFTER the egress hook installs (the `./egress-hook-bootstrap.js` import
+ * at the top of `index.ts` runs first) and BEFORE markReady(). Any
+ * accidental network call from a resource handler is therefore hard-blocked
+ * by the hook.
  */
 export async function startMcpServer(): Promise<BuiltMcpServer> {
   // Bootstrap: not-ready yet.
   const built = buildMcpServer({ ready: false });
 
+  // SP-002 — register the four read-only resources. The wiring helpers are
+  // imported lazily to keep the bootstrap-ordering invariant: index.ts
+  // imports `./egress-hook-bootstrap.js` first and `./mcp-server.js` second;
+  // dynamic-import here defers the resource-handler module loads until the
+  // egress hook is fully installed.
+  // T038 — manifest registered (US1).
+  // T046, T057, T066 land taxonomy/document/recent in Phases 4-6.
+  const { registerManifestResource } = await import(
+    './resource-manifest-handler.js'
+  );
+  registerManifestResource(built);
+  const { registerTaxonomyResource } = await import(
+    './resource-taxonomy-handler.js'
+  );
+  registerTaxonomyResource(built);
+  const { registerDocumentResource } = await import(
+    './resource-document-handler.js'
+  );
+  registerDocumentResource(built);
+  const { registerRecentResource } = await import(
+    './resource-recent-handler.js'
+  );
+  registerRecentResource(built);
+
   const transport = new StdioServerTransport();
   await built.server.connect(transport);
 
-  // SP-001 has no real index to open; transition to ready immediately after
-  // the transport is connected. SP-003+ adds the index-open precondition.
+  // SP-002 ensures the SQLite index file + baseline schema exist before
+  // ready transition (so the first resource read finds a queryable file).
+  // The `ensureIndexInitialized` call is idempotent.
+  const { ensureIndexInitialized } = await import('@llm-corpus/storage');
+  ensureIndexInitialized();
+
+  // SP-002 also gates ready on config validity: out-of-range config values
+  // surface as a startup error, NOT a per-read failure.
+  const { loadResourceConfig } = await import('@llm-corpus/storage');
+  loadResourceConfig();
+
   built.markReady();
 
   return built;
