@@ -1,12 +1,51 @@
 {
   "name": "@llm-corpus/storage",
   "version": "0.1.0",
-  "description": "Storage adapter stubs (NFR-001 lint scope).",
+  "description": "Read-only storage adapters for SP-002 MCP resources.",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./sqlite-open": {
+      "types": "./dist/sqlite-open.d.ts",
+      "default": "./dist/sqlite-open.js"
+    },
+    "./schema-migration": {
+      "types": "./dist/schema-migration.d.ts",
+      "default": "./dist/schema-migration.js"
+    },
+    "./config-loader": {
+      "types": "./dist/config-loader.d.ts",
+      "default": "./dist/config-loader.js"
+    },
+    "./manifest-adapter": {
+      "types": "./dist/manifest-adapter.d.ts",
+      "default": "./dist/manifest-adapter.js"
+    },
+    "./taxonomy-adapter": {
+      "types": "./dist/taxonomy-adapter.d.ts",
+      "default": "./dist/taxonomy-adapter.js"
+    },
+    "./document-adapter": {
+      "types": "./dist/document-adapter.d.ts",
+      "default": "./dist/document-adapter.js"
+    },
+    "./recent-adapter": {
+      "types": "./dist/recent-adapter.d.ts",
+      "default": "./dist/recent-adapter.js"
+    }
+  },
   "dependencies": {
-    "@llm-corpus/contracts": "0.1.0"
+    "@iarna/toml": "^2.2.5",
+    "@llm-corpus/contracts": "0.1.0",
+    "better-sqlite3": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
   }
 }
