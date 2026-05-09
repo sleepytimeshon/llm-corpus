@@ -68,6 +68,13 @@ export const Paths = Object.freeze({
 
   // --- Derived: cache/ ---
   extractCache: (): string => path.join(Paths.cache(), 'extract'),
+
+  // --- Derived: cache/ — SP-002 ---
+  // T003 — Per-test fixture root for SP-002 populated-corpus integration tests.
+  // Constitution XIV: fixtures live under Paths.cache(), never os.tmpdir().
+  // The fixture-loader (packages/storage/src/fixtures.ts) resolves per-test
+  // subdirectories under this root; cleanup() removes the per-test subtree.
+  sp002FixturesRoot: (): string => path.join(Paths.cache(), 'sp002-fixtures'),
 } as const);
 
 export type PathsType = typeof Paths;
