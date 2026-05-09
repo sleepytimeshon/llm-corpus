@@ -4,8 +4,19 @@
 // `child_process.exec` (which uses a shell), no `spawn(... { shell: true })`,
 // no string-formed shell commands. All subprocess invocations MUST go
 // through `runTool(name, args[], opts)` with an explicit argv array.
+//
+// SP-002 refinement: the original SP-001 rule flagged ALL `.exec()` member
+// calls, which mis-fired on better-sqlite3's `db.exec(SQL)` API (a legitimate
+// SQL-multi-statement entry point — NOT a shell). This refinement detects
+// only the child_process.* family by tracking imports from 'child_process'
+// and 'node:child_process', falling back to `execSync`/`execFileSync` (which
+// are unambiguously shell-class names — better-sqlite3 has no such API).
 
-const FORBIDDEN_EXEC_FUNCTIONS = new Set(['exec', 'execSync', 'execFileSync']);
+// `execSync` / `execFileSync` are unambiguously child_process; better-sqlite3
+// has no method by these names. `exec` is the ambiguous name — flagged only
+// when bound to a child_process import.
+const UNAMBIGUOUS_FORBIDDEN = new Set(['execSync', 'execFileSync']);
+const CHILD_PROCESS_MODULES = new Set(['child_process', 'node:child_process']);
 
 /** @type {import('eslint').Rule.RuleModule} */
 const rule = {
@@ -24,25 +35,74 @@ const rule = {
     },
   },
   create(context) {
+    // Track local bindings imported from child_process so we know which
+    // `exec(...)` / `cp.exec(...)` calls actually invoke child_process.
+    const childProcessNamespaces = new Set(); // local namespace names: e.g. `cp`
+    const childProcessNamedExec = new Set(); // local names of `exec` from cp
+
     return {
-      // child_process.exec(...) / .execSync(...) / .execFileSync(...)
+      ImportDeclaration(node) {
+        if (typeof node.source.value !== 'string') return;
+        if (!CHILD_PROCESS_MODULES.has(node.source.value)) return;
+        for (const spec of node.specifiers) {
+          if (spec.type === 'ImportNamespaceSpecifier') {
+            childProcessNamespaces.add(spec.local.name);
+          } else if (spec.type === 'ImportSpecifier') {
+            const importedName =
+              spec.imported.type === 'Identifier' ? spec.imported.name : null;
+            if (importedName === 'exec') {
+              childProcessNamedExec.add(spec.local.name);
+            }
+            // execSync / execFileSync caught by unambiguous-name check
+          } else if (spec.type === 'ImportDefaultSpecifier') {
+            // CommonJS-style default import of the whole module
+            childProcessNamespaces.add(spec.local.name);
+          }
+        }
+      },
+
+      // Member-call: `<obj>.<prop>(...)`
       'CallExpression[callee.type="MemberExpression"]'(node) {
         const prop = node.callee.property;
-        if (prop && prop.type === 'Identifier' && FORBIDDEN_EXEC_FUNCTIONS.has(prop.name)) {
+        if (!prop || prop.type !== 'Identifier') return;
+        const propName = prop.name;
+        // Unambiguously forbidden names (no SQLite collision):
+        if (UNAMBIGUOUS_FORBIDDEN.has(propName)) {
           context.report({
             node,
             messageId: 'noExec',
-            data: { name: prop.name },
+            data: { name: propName },
           });
+          return;
+        }
+        // Ambiguous `.exec`: only flag when called on a child_process namespace.
+        if (propName === 'exec') {
+          const obj = node.callee.object;
+          if (obj.type === 'Identifier' && childProcessNamespaces.has(obj.name)) {
+            context.report({
+              node,
+              messageId: 'noExec',
+              data: { name: 'exec' },
+            });
+          }
         }
       },
       // Bare exec() / execSync() (named imports).
       'CallExpression[callee.type="Identifier"]'(node) {
-        if (FORBIDDEN_EXEC_FUNCTIONS.has(node.callee.name)) {
+        const calleeName = node.callee.name;
+        if (UNAMBIGUOUS_FORBIDDEN.has(calleeName)) {
           context.report({
             node,
             messageId: 'noExec',
-            data: { name: node.callee.name },
+            data: { name: calleeName },
+          });
+          return;
+        }
+        if (calleeName === 'exec' && childProcessNamedExec.has(calleeName)) {
+          context.report({
+            node,
+            messageId: 'noExec',
+            data: { name: 'exec' },
           });
         }
       },

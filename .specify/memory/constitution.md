@@ -188,6 +188,8 @@ Subprocess invocation MUST go through a single `runTool(name: string, args: stri
 
 **Rationale:** Architecture §15.12. String-formed shell commands are command-injection vectors and silent-failure points.
 
+**Lint-mechanism note (ADR-009, proposed 2026-05-09):** the `no-shell-string-exec` rule narrows its `exec` name match to `child_process`-bound imports to avoid false positives on `better-sqlite3`'s `Database.exec(SQL)` API (a single-process native method, not a subprocess). `execSync`/`execFileSync` remain unambiguously forbidden as bare identifiers or member-call properties. The principle text above is unchanged; only the lint rule's interpretation of "exec" disambiguates by import provenance. See `.product/ADRs/ADR-009-no-shell-string-exec-narrowing.md`.
+
 ### XIII. Telemetry-or-Die (NON-NEGOTIABLE)
 
 Every catch block in any source file under `packages/` MUST emit a structured event to `Paths.telemetry()` before throwing or returning, with severity matching the actual error severity (no downgrading errors to `debug`/`info` to silence alerts). Every state transition MUST emit a telemetry event describing inputs (hashes, not content), outcome, and duration. Every search query MUST emit a `search_query` event with `tier_used` and `result_count`.
