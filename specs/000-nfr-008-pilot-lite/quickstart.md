@@ -22,7 +22,7 @@ If absent, run `ollama pull qwen3:8b` once and re-check. Per ADR-010 §Decision,
 
 ```bash
 cd /home/shonrs/Projects/llm-corpus
-bun run build
+npm run build
 node packages/cli/dist/index.js mcp --help
 ```
 
@@ -46,13 +46,19 @@ Expected output: a Zod literal entry registering the event class with FR-PILOT-0
 
 ### 0.5 Q3 retrieval-pattern DRAFT definitions are ratified
 
-Inspect the PR-walkthrough comments on the PR that authored spec.md `## Retrieval Pattern Operational Definitions`. Look for an explicit ratification comment from you (Shon) on each of the three patterns. Per FR-PILOT-012, running against unratified definitions is FORBIDDEN.
+Per tasks.md T019/T021, ratification is recorded as an in-spec `<!-- ratified: true -->` HTML-comment marker on each of the three pattern sub-sections in spec.md `## Retrieval Pattern Operational Definitions`, authored by you (Shon) at PR-walkthrough time. Verify:
+
+```bash
+grep -c '<!-- ratified: true -->' specs/000-nfr-008-pilot-lite/spec.md
+```
+
+Expected output: `3` (one marker per retrieval pattern). If less than 3, ratification is incomplete and the harness's T019 gate will refuse to run. Per FR-PILOT-012, running against unratified definitions is FORBIDDEN.
 
 ### 0.6 The 50-query set is committed and passes the stratification linter
 
 ```bash
 ls -la specs/000-nfr-008-pilot-lite/queries.yaml
-bun run vitest run tests/contract/sp000-lite/query-stratification.test.ts
+npm run vitest run tests/contract/sp000-lite/query-stratification.test.ts
 ```
 
 The linter MUST pass before the harness runs. A failing linter blocks the pilot harness's own startup (per `pilot-harness.feature` scenario "Bucket count deviation blocks the pilot run").

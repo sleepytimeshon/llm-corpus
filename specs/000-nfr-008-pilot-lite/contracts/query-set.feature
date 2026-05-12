@@ -63,7 +63,7 @@ Feature: SP-000-Lite query set stratification rubric
     And no telemetry file is created
 
   Scenario: Ratified definitions unlock the pilot run
-    Given Q3 DRAFT definitions have been ratified in PR walkthrough (recorded in PR review comments)
+    Given Q3 DRAFT definitions have been ratified in PR walkthrough (recorded as an in-spec `<!-- ratified: true -->` HTML-comment marker on each of the three pattern sub-sections in spec.md, authored by Shon at PR-walkthrough time per tasks.md T019/T021)
     And the stratification linter passes
     When Shon runs `corpus pilot run --variant v1 --iteration 1`
     Then the harness starts the 50-query loop
