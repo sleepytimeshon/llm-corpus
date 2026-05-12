@@ -27,8 +27,15 @@ import {
 } from '@llm-corpus/pipeline';
 import { openIndexReadWrite } from '@llm-corpus/storage';
 
-// Re-export the worker-bootstrap module path for backward compat (SP-001).
-export * from './worker-bootstrap.js';
+// NOTE: worker-bootstrap.ts is a side-effecting module that calls
+// installEgressHook() at top level. It is preloaded into Worker threads
+// via `--require` (see packages/daemon/package.json `./worker-bootstrap`
+// export entry + packages/daemon/src/worker-spawn-guard.ts path lookup).
+// It MUST NOT be re-exported from this main-thread entry — doing so causes
+// a second installEgressHook() call in the main thread, where transport's
+// egress-hook-bootstrap.ts has already installed the singleton, and the
+// guard throws EgressHookAlreadyInstalledError. The prior re-export was
+// dead-code "backward compat" that nothing depended on.
 
 export interface DaemonOptions {
   /** Optional: skip the process.exit at end (used by tests). */
