@@ -1,0 +1,17 @@
+{
+  "name": "@llm-corpus-tools/pdf-extractor",
+  "version": "0.1.0",
+  "description": "Vendored CLI shim wrapping pdf-parse for SP-003 (Constitution XII subprocess hygiene). NOT part of the monorepo workspaces graph.",
+  "private": true,
+  "type": "module",
+  "main": "./extract.mjs",
+  "bin": {
+    "pdf-extractor": "./extract.mjs"
+  },
+  "dependencies": {
+    "pdf-parse": "1.1.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

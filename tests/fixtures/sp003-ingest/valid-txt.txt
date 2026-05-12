@@ -1,0 +1,8 @@
+SP-003 plain-text fixture.
+
+This file is used by the SP-003 ingest-pipeline tests for the happy-path
+text-wrapping normalization. The normalizer wraps plain text in a minimal
+Markdown structure with FR-008 frontmatter at the top; the body bytes after
+the frontmatter are byte-identical to this file's content.
+
+End of fixture.
