@@ -1,35 +1,49 @@
-// T026 (SP-003) — RED contract test: size-boundary at max and max+1.
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md SC-INGEST-008
-//   - Constitution VII bounded IO
+// T026 (SP-003) — size-boundary at max and max+1.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { validateInboxFile } from '../../packages/pipeline/src/validation-gate.js';
 
-const MODULE_PATH = '../../packages/pipeline/src/validation-gate.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(maxFileSizeMb: number = 1): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  // Write a config.toml with a small ingest cap so we can test the boundary
+  // without writing a 100MB file.
+  const configDir = path.join(root, 'config');
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(configDir, 'config.toml'),
+    `[ingest]\nmax_file_size_mb = ${maxFileSizeMb}\n`,
+  );
+  return root;
 }
 
-describe('validateInboxFile size boundary (T026 — Phase 2 RED)', () => {
+describe('validateInboxFile size boundary (T026)', () => {
+  beforeEach(() => {
+    freshCorpusHome(1); // 1 MB cap for the test.
+  });
+
   it('file at exactly max_file_size_mb passes', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect.fail(
-      'Phase 3 (T058) required — file at exactly max size passes; max+1 bytes fails with size_exceeded',
-    );
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'big.txt');
+    const oneMB = 1024 * 1024;
+    await fsp.writeFile(file, Buffer.alloc(oneMB, 'a'));
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(true);
   });
 
-  it('file at max+1 bytes fails with error_code size_exceeded', async () => {
-    expect.fail('Phase 3 (T058) required');
-  });
-
-  it('reads at most max+1 bytes before rejection (bounded IO)', async () => {
-    expect.fail('Phase 3 (T058) required');
+  it('file at max+1 bytes fails with size_exceeded', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'too-big.txt');
+    const oneMB = 1024 * 1024;
+    await fsp.writeFile(file, Buffer.alloc(oneMB + 1, 'a'));
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data.error_code).toBe('size_exceeded');
+    }
   });
 });

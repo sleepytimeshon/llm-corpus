@@ -1,27 +1,39 @@
-// T051 (SP-003) — RED integration test: no body content in telemetry.
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md SC-INGEST-014
-//   - Constitution I (Local-First, No Egress)
+// T051 (SP-003) — no body content in telemetry.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import {
+  drain,
+  batchPolicy,
+} from '../../packages/pipeline/src/index.js';
+import { Paths } from '@llm-corpus/contracts';
 
-const DAEMON_PATH = '../../packages/daemon/src/index.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(DAEMON_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('telemetry no body content (T051 — Phase 2 RED)', () => {
-  it('fixture document contains FIXTURE_CANARY_PHRASE → grep over Paths.telemetry() returns ZERO matches; hashes/ids/paths permitted', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect.fail(
-      'Phase 3 (T076) required — body content MUST NOT appear in telemetry payloads',
-    );
+describe('telemetry no body content (T051)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
+
+  it('fixture canary phrase does NOT appear anywhere in telemetry', async () => {
+    const inboxPath = Paths.inbox();
+    fs.mkdirSync(inboxPath, { recursive: true });
+    const canary = 'FIXTURE_CANARY_PHRASE_xyz123';
+    await fsp.writeFile(
+      path.join(inboxPath, 'doc.md'),
+      `# title\n\nbody contains ${canary} as content.\n`,
+    );
+
+    await drain({}, batchPolicy, new AbortController().signal);
+
+    const tel = fs.readFileSync(Paths.telemetry(), 'utf8');
+    expect(tel).not.toContain(canary);
+  }, 30_000);
 });

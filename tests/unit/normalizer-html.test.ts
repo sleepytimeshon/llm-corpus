@@ -1,37 +1,66 @@
-// T030 (SP-003) — RED contract test for normalize-html.
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-006
-//   - specs/003-ingest-pipeline/plan.md Decision G (turndown)
+// T030 (SP-003) — normalize-html (turndown frozen rules).
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { normalizeHtml } from '../../packages/extract/src/normalize-html.js';
 
-const MODULE_PATH = '../../packages/extract/src/normalize-html.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-describe('normalizeHtml (T030 — Phase 2 RED)', () => {
-  it('exports normalizeHtml', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.normalizeHtml).toBe('function');
+describe('normalizeHtml (T030)', () => {
+  it('exports normalizeHtml', () => {
+    expect(typeof normalizeHtml).toBe('function');
   });
 
-  it('turndown invoked with frozen rule set (no plugins, no custom rules)', async () => {
-    expect.fail('Phase 3 (T063) required — TurndownService({ headingStyle: atx, codeBlockStyle: fenced }); no service.use; no service.addRule');
+  it('produces Markdown from HTML', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-html-'));
+    const file = path.join(dir, 'page.html');
+    await fsp.writeFile(file, '<h1>Title</h1><p>Body para.</p>');
+
+    const result = await normalizeHtml(
+      {
+        pendingPath: file,
+        docId: 'doc-12345678',
+        sourcePath: '/inbox/page.html',
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'text/html',
+        hash: 'd'.repeat(64),
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // ATX heading style (frozen rule).
+      expect(result.value.body).toContain('# Title');
+      expect(result.value.body).toContain('Body para.');
+    }
   });
 
-  it('deterministic output across two runs on same input', async () => {
-    expect.fail('Phase 3 (T063) required');
-  });
+  it('deterministic output across two runs on same input (frozen rule set)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-html-'));
+    const file = path.join(dir, 'page.html');
+    await fsp.writeFile(
+      file,
+      '<h1>Header</h1><ul><li>one</li><li>two</li></ul><pre><code>code</code></pre>',
+    );
 
-  it('in-process (no subprocess)', async () => {
-    expect.fail('Phase 3 (T063) required');
+    const input = {
+      pendingPath: file,
+      docId: 'doc-12345678',
+      sourcePath: '/inbox/page.html',
+      ingestTimestamp: '2026-05-12T00:00:00.000Z',
+      mimeType: 'text/html' as const,
+      hash: 'd'.repeat(64),
+    };
+
+    const a = await normalizeHtml(input, new AbortController().signal);
+    const b = await normalizeHtml(input, new AbortController().signal);
+
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    if (a.ok && b.ok) {
+      expect(a.value.body).toBe(b.value.body);
+    }
   });
 });

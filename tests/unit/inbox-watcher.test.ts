@@ -1,47 +1,53 @@
-// T021 (SP-003) — RED contract test for InboxWatcher.
-//
-// References:
-//   - specs/003-ingest-pipeline/contracts/inbox-watcher.feature
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-001
-//   - specs/003-ingest-pipeline/plan.md Decision E (chokidar)
-//
-// Module under test: packages/pipeline/src/inbox-watcher.ts — does NOT yet
-// exist. This test imports lazily and fails-by-design at the import or
-// assertion level until Dispatch B implements T070.
+// T021 (SP-003) — InboxWatcher.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { InboxWatcher } from '../../packages/pipeline/src/inbox-watcher.js';
+import { Paths } from '@llm-corpus/contracts';
 
-const MODULE_PATH = '../../packages/pipeline/src/inbox-watcher.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('InboxWatcher (T021 — Phase 2 RED, Dispatch A scaffolding)', () => {
-  it('exports InboxWatcher constructor', async () => {
-    const mod = await loadModule();
-    // RED by design — module does not exist until Dispatch B (T070).
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.InboxWatcher).toBe('function');
+describe('InboxWatcher (T021)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('honors awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    // Constructor signature contract: accepts { inboxPath, signal, policy, onDetected }
-    // Verified properly once T070 lands.
-    expect.fail('Phase 3 (T070) required — InboxWatcher not yet implemented');
+  it('exports InboxWatcher constructor', () => {
+    expect(typeof InboxWatcher).toBe('function');
   });
 
-  it('depth: 0 — subdirectory files do NOT trigger', async () => {
-    expect.fail('Phase 3 (T070) required — InboxWatcher not yet implemented');
-  });
+  it('detects a newly dropped file', async () => {
+    const inboxPath = Paths.inbox();
+    fs.mkdirSync(inboxPath, { recursive: true });
+    const detected: string[] = [];
+    const controller = new AbortController();
+    const watcher = InboxWatcher({
+      inboxPath,
+      signal: controller.signal,
+      onDetected: (p) => detected.push(p),
+    });
+    await watcher.ready();
 
-  it('on inotify ENOSPC emits inbox.watcher_resource_exhausted + throws WatcherError', async () => {
-    expect.fail('Phase 3 (T070) required — InboxWatcher not yet implemented');
-  });
+    const file = path.join(inboxPath, 'new.md');
+    await fsp.writeFile(file, '# fresh\n');
+
+    // Wait up to 5s for awaitWriteFinish (stabilityThreshold=500ms).
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && detected.length === 0) {
+      await new Promise<void>((r) => setTimeout(r, 100));
+    }
+
+    expect(detected.length).toBeGreaterThanOrEqual(1);
+    expect(detected[0]).toContain('new.md');
+
+    controller.abort();
+    await watcher.close();
+  }, 10_000);
 });

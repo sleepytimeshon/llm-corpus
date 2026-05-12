@@ -11,6 +11,11 @@
 
 import { startMcpServer } from '@llm-corpus/transport';
 import { runPilotCommand } from './pilot/command.js';
+import {
+  runDaemonStart,
+  runDaemonStop,
+  runDrain,
+} from './daemon-commands.js';
 
 interface ParsedArgs {
   subcommand: string | undefined;
@@ -31,11 +36,12 @@ function printUsage(): void {
       'Usage: corpus <subcommand>',
       '',
       'Subcommands:',
-      '  mcp        Start the MCP server on stdio',
-      '  pilot      NFR-008 reduced-scope pilot harness (SP-000-Lite)',
-      '  --help     Print this message',
-      '',
-      'SP-001 ships only the `mcp` subcommand. Ingest/search land in SP-003+.',
+      '  mcp                 Start the MCP server on stdio',
+      '  pilot               NFR-008 reduced-scope pilot harness (SP-000-Lite)',
+      '  daemon start        Start the inbox watcher daemon (long-running)',
+      '  daemon stop         Stop the running daemon (SIGTERM via PID file)',
+      '  drain               One-shot drain (process inbox + pending once)',
+      '  --help              Print this message',
       '',
     ].join('\n'),
   );
@@ -69,6 +75,16 @@ async function main(argv: readonly string[]): Promise<number> {
       return runMcp();
     case 'pilot':
       return runPilotCommand(rest);
+    case 'daemon': {
+      const action = rest[0];
+      if (action === 'start') return runDaemonStart();
+      if (action === 'stop') return runDaemonStop();
+      process.stderr.write(`corpus daemon: unknown action "${action ?? ''}"\n`);
+      printUsage();
+      return 2;
+    }
+    case 'drain':
+      return runDrain();
     case undefined:
     case '--help':
     case '-h':

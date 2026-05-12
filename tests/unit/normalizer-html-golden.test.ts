@@ -1,27 +1,31 @@
-// T031 (SP-003) — RED golden test for normalize-html turndown rule-set drift.
-//
-// References:
-//   - specs/003-ingest-pipeline/plan.md R5
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-006
+// T031 (SP-003) — golden test for turndown rule-set drift detection.
 
 import { describe, it, expect } from 'vitest';
+import { normalizeHtml } from '../../packages/extract/src/normalize-html.js';
 
-const MODULE_PATH = '../../packages/extract/src/normalize-html.js';
+const FIXTURE_PATH = 'tests/fixtures/sp003-ingest/valid-html.html';
 
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-describe('normalizeHtml golden output (T031 — Phase 2 RED)', () => {
-  it('fixture HTML produces expected Markdown (turndown ^7.2.0 frozen rules)', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect.fail(
-      'Phase 3 (T063) required — golden test against tests/fixtures/sp003-ingest/valid-html.html; any version bump that changes default rule output breaks this test',
+describe('normalizeHtml golden output (T031)', () => {
+  it('valid-html.html fixture produces deterministic, ATX-style Markdown', async () => {
+    const result = await normalizeHtml(
+      {
+        pendingPath: FIXTURE_PATH,
+        docId: 'doc-deadbeef',
+        sourcePath: '/inbox/valid-html.html',
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'text/html',
+        hash: 'e'.repeat(64),
+      },
+      new AbortController().signal,
     );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Frozen-rule outputs: ATX `#`, fenced code blocks (```).
+      expect(result.value.body).toContain('SP-003 HTML fixture');
+      expect(result.value.body).toContain('# SP-003 HTML fixture');
+      expect(result.value.body).toContain('## List rendering');
+      expect(result.value.body).toContain('```');
+    }
   });
 });

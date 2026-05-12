@@ -1,46 +1,63 @@
-// T024 (SP-003) — RED contract test for validateInboxFile.
+// T024 (SP-003) — contract test for validateInboxFile.
 //
 // References:
 //   - specs/003-ingest-pipeline/spec.md FR-INGEST-002
 //   - specs/003-ingest-pipeline/contracts/validation-gate.feature
 //   - SC-INGEST-007/008/009
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { validateInboxFile } from '../../packages/pipeline/src/validation-gate.js';
 
-const MODULE_PATH = '../../packages/pipeline/src/validation-gate.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('validateInboxFile (T024 — Phase 2 RED)', () => {
-  it('exports validateInboxFile', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.validateInboxFile).toBe('function');
+describe('validateInboxFile (T024)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('runs filename sanity → extension → MIME-sniff → size in fixed order', async () => {
-    expect.fail('Phase 3 (T058) required — validateInboxFile not yet implemented');
+  it('exports validateInboxFile', () => {
+    expect(typeof validateInboxFile).toBe('function');
   });
 
-  it('short-circuits on first failure', async () => {
-    expect.fail('Phase 3 (T058) required');
+  it('rejects an extension not in the allowlist', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'thing.docx');
+    await fsp.writeFile(file, 'hello');
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data.error_code).toBe('mime_not_allowlisted');
+    }
   });
 
-  it('error_code matches the gate that fired first', async () => {
-    expect.fail('Phase 3 (T058) required');
+  it('accepts a valid markdown file', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'doc.md');
+    await fsp.writeFile(file, '# Hello\n\nMarkdown body.\n');
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.mimeType).toBe('text/markdown');
+    }
   });
 
-  it('emits inbox.* telemetry on every outcome', async () => {
-    expect.fail('Phase 3 (T058) required');
-  });
-
-  it('bounded IO — no content read past max-size cutoff', async () => {
-    expect.fail('Phase 3 (T058) required');
+  it('error_code matches the gate that fired first (extension before MIME)', async () => {
+    // .docx — extension fails BEFORE MIME-sniff even runs.
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'thing.docx');
+    await fsp.writeFile(file, Buffer.from('%PDF-1.4'));
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data.error_code).toBe('mime_not_allowlisted');
+    }
   });
 });

@@ -1,40 +1,60 @@
-// T044 (SP-003) — RED integration test for drain orchestrator + policies.
-//
-// References:
-//   - Constitution VI (One Pipeline, Two Policies)
-//   - specs/003-ingest-pipeline/plan.md Decision H
+// T044 (SP-003) — drain orchestrator + policies.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import {
+  drain,
+  interactivePolicy,
+  batchPolicy,
+} from '../../packages/pipeline/src/index.js';
+import { Paths } from '@llm-corpus/contracts';
 
-const MODULE_PATH = '../../packages/pipeline/src/drain-orchestrator.js';
-const POLICIES_PATH = '../../packages/pipeline/src/policies.js';
-
-async function loadModule(p: string): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(p)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('drain orchestrator + policies (T044 — Phase 2 RED)', () => {
-  it('exports drain(input, policy, signal)', async () => {
-    const mod = await loadModule(MODULE_PATH);
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.drain).toBe('function');
+describe('drain orchestrator + policies (T044)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('ONE drain function shared by interactive and batch (Constitution VI)', async () => {
-    expect.fail('Phase 3 (T072) required');
+  it('exports drain function', () => {
+    expect(typeof drain).toBe('function');
   });
 
-  it('exports interactivePolicy and batchPolicy as Zod-validated Policy records', async () => {
-    const pol = await loadModule(POLICIES_PATH);
-    expect(pol).not.toBeNull();
-    expect.fail('Phase 3 (T071) required — policy module not yet implemented');
+  it('exports interactivePolicy and batchPolicy', () => {
+    expect(interactivePolicy.name).toBe('interactive');
+    expect(batchPolicy.name).toBe('batch');
+    expect(interactivePolicy.retryOnRetriableError).toBe(false);
+    expect(batchPolicy.retryOnRetriableError).toBe(true);
   });
 
-  it('drain dispatches behavior off policy fields', async () => {
-    expect.fail('Phase 3 (T072) required');
-  });
+  it('drain processes a single dropped Markdown file under interactivePolicy', async () => {
+    const inboxPath = Paths.inbox();
+    fs.mkdirSync(inboxPath, { recursive: true });
+    await fsp.writeFile(path.join(inboxPath, 'doc.md'), '# hello\n');
+
+    const r = await drain({}, interactivePolicy, new AbortController().signal);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.ingested).toBe(1);
+    }
+  }, 30_000);
+
+  it('drain processes a single dropped Markdown file under batchPolicy too (one pipeline, two policies)', async () => {
+    const inboxPath = Paths.inbox();
+    fs.mkdirSync(inboxPath, { recursive: true });
+    await fsp.writeFile(path.join(inboxPath, 'doc.md'), '# hello batch\n');
+
+    const r = await drain({}, batchPolicy, new AbortController().signal);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.ingested).toBe(1);
+    }
+  }, 30_000);
 });

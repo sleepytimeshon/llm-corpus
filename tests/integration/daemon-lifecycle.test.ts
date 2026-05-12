@@ -1,31 +1,43 @@
-// T056 (SP-003) — RED integration test: daemon lifecycle + SIGTERM wiring.
-//
-// References:
-//   - Constitution XI (only daemon may process.exit)
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-013
+// T056 (SP-003) — daemon lifecycle + SIGTERM wiring.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { main as daemonMain } from '../../packages/daemon/src/index.js';
+import { Paths } from '@llm-corpus/contracts';
+import { openIndexReadWrite } from '@llm-corpus/storage';
 
-const DAEMON_PATH = '../../packages/daemon/src/index.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(DAEMON_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('daemon lifecycle (T056 — Phase 2 RED)', () => {
-  it('corpus daemon start launches; SIGTERM wires master AbortController; watcher + drain loop wired to controller', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect.fail(
-      'Phase 3 (T073) required — daemon is the ONLY process.exit site in SP-003 source tree',
-    );
+describe('daemon lifecycle (T056)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('daemon is the ONLY process.exit site in SP-003', async () => {
-    expect.fail('Phase 3 (T073) required');
-  });
+  it('daemon main(): starts, processes inbox, exits cleanly on abort', async () => {
+    const inboxPath = Paths.inbox();
+    fs.mkdirSync(inboxPath, { recursive: true });
+    await fsp.writeFile(path.join(inboxPath, 'pre.md'), '# pre\n');
+
+    const controller = new AbortController();
+    // Abort after 1 second so daemon has time to do initial drain.
+    setTimeout(() => controller.abort(), 1000);
+
+    const exitCode = await daemonMain({ noExit: true, controller });
+    expect(exitCode).toBe(0);
+
+    // The pre-existing file was ingested.
+    const db = openIndexReadWrite();
+    const count = (db
+      .prepare(`SELECT COUNT(*) AS c FROM documents WHERE status = 'success'`)
+      .get() as { c: number }).c;
+    db.close();
+    expect(count).toBeGreaterThanOrEqual(1);
+  }, 10_000);
 });

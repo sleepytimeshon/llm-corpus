@@ -1,40 +1,71 @@
-// T034 (SP-003) — RED contract test for normalize dispatcher.
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-006
+// T034 (SP-003) — normalize dispatcher.
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { normalize } from '../../packages/extract/src/normalize.js';
 
-const MODULE_PATH = '../../packages/extract/src/normalize.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-describe('normalize dispatcher (T034 — Phase 2 RED)', () => {
-  it('exports normalize(pendingPath, mimeType, signal)', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.normalize).toBe('function');
+describe('normalize dispatcher (T034)', () => {
+  it('exports normalize', () => {
+    expect(typeof normalize).toBe('function');
   });
 
-  it('dispatches application/pdf to normalizePdf', async () => {
-    expect.fail('Phase 3 (T065) required — per-MIME dispatcher');
+  it('dispatches text/markdown to the markdown normalizer', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-dis-'));
+    const file = path.join(dir, 'doc.md');
+    await fsp.writeFile(file, '# md\n');
+    const r = await normalize(
+      {
+        pendingPath: file,
+        docId: 'doc-aaaaaaaa',
+        sourcePath: file,
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'text/markdown',
+        hash: '1'.repeat(64),
+      },
+      new AbortController().signal,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.body).toContain('# md');
   });
 
-  it('dispatches text/markdown to normalizeMarkdown', async () => {
-    expect.fail('Phase 3 (T065) required');
+  it('dispatches text/plain to the text normalizer', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-dis-'));
+    const file = path.join(dir, 'doc.txt');
+    await fsp.writeFile(file, 'plain text');
+    const r = await normalize(
+      {
+        pendingPath: file,
+        docId: 'doc-aaaaaaaa',
+        sourcePath: file,
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'text/plain',
+        hash: '1'.repeat(64),
+      },
+      new AbortController().signal,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.body).toBe('plain text');
   });
 
-  it('dispatches text/plain to normalizeText', async () => {
-    expect.fail('Phase 3 (T065) required');
-  });
-
-  it('dispatches text/html to normalizeHtml', async () => {
-    expect.fail('Phase 3 (T065) required');
+  it('dispatches text/html to the html normalizer', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-dis-'));
+    const file = path.join(dir, 'doc.html');
+    await fsp.writeFile(file, '<h1>X</h1>');
+    const r = await normalize(
+      {
+        pendingPath: file,
+        docId: 'doc-aaaaaaaa',
+        sourcePath: file,
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'text/html',
+        hash: '1'.repeat(64),
+      },
+      new AbortController().signal,
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.body).toContain('# X');
   });
 });

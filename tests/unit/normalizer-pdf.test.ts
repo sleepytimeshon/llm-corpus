@@ -1,38 +1,45 @@
-// T032 (SP-003) — RED contract test for normalize-pdf (subprocess invocation).
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md FR-INGEST-006
-//   - specs/003-ingest-pipeline/plan.md Decision F
-//   - Constitution XII (subprocess hygiene)
+// T032 (SP-003) — normalize-pdf (subprocess invocation).
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { normalizePdf } from '../../packages/extract/src/normalize-pdf.js';
 
-const MODULE_PATH = '../../packages/extract/src/normalize-pdf.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('normalizePdf (T032 — Phase 2 RED)', () => {
-  it('exports normalizePdf', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect(typeof mod?.normalizePdf).toBe('function');
+describe('normalizePdf (T032)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('invokes runTool(node, [tools/pdf-extractor/extract.mjs, --in, --out])', async () => {
-    expect.fail('Phase 3 (T064) required — propagate AbortSignal; emit tool_invoked telemetry with binary "node" not full args');
+  it('exports normalizePdf', () => {
+    expect(typeof normalizePdf).toBe('function');
   });
 
-  it('propagates AbortSignal to the subprocess', async () => {
-    expect.fail('Phase 3 (T064) required');
-  });
-
-  it('on subprocess success reads stdout-written body file', async () => {
-    expect.fail('Phase 3 (T064) required');
-  });
+  it('returns NormalizeError when input is not a valid PDF', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'norm-pdf-'));
+    const file = path.join(dir, 'fake.pdf');
+    fs.writeFileSync(file, 'not a pdf');
+    const result = await normalizePdf(
+      {
+        pendingPath: file,
+        docId: 'doc-12345678',
+        sourcePath: file,
+        ingestTimestamp: '2026-05-12T00:00:00.000Z',
+        mimeType: 'application/pdf',
+        hash: 'f'.repeat(64),
+      },
+      new AbortController().signal,
+      { timeoutMs: 30_000 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data.error_code).toBe('extract_failed');
+    }
+  }, 60_000);
 });

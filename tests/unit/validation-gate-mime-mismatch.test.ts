@@ -1,31 +1,44 @@
-// T025 (SP-003) — RED contract test: mime-mismatch detection.
-//
-// References:
-//   - specs/003-ingest-pipeline/spec.md ADR-007, C-018 F-5
-//   - specs/003-ingest-pipeline/contracts/validation-gate.feature
+// T025 (SP-003) — mime-mismatch detection.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { validateInboxFile } from '../../packages/pipeline/src/validation-gate.js';
 
-const MODULE_PATH = '../../packages/pipeline/src/validation-gate.js';
-
-async function loadModule(): Promise<Record<string, unknown> | null> {
-  try {
-    return (await import(MODULE_PATH)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+function freshCorpusHome(): string {
+  const root = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'sp003-test-'));
+  process.env.CORPUS_HOME = root;
+  return root;
 }
 
-describe('validateInboxFile MIME mismatch (T025 — Phase 2 RED)', () => {
-  it('.md extension with %PDF magic bytes -> error_code mime_mismatch', async () => {
-    const mod = await loadModule();
-    expect(mod).not.toBeNull();
-    expect.fail(
-      'Phase 3 (T058) required — assert sidecar records both .md extension and detected application/pdf MIME',
-    );
+describe('validateInboxFile MIME mismatch (T025)', () => {
+  beforeEach(() => {
+    freshCorpusHome();
   });
 
-  it('sidecar records extension AND detected_mime', async () => {
-    expect.fail('Phase 3 (T058/T059) required');
+  it('.md extension with %PDF magic bytes returns mime_mismatch', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'sneaky.md');
+    // Write %PDF magic bytes as content despite the .md extension.
+    await fsp.writeFile(file, Buffer.from('%PDF-1.4\nfake pdf body'));
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data.error_code).toBe('mime_mismatch');
+    }
+  });
+
+  it('error data carries extension AND detected_mime', async () => {
+    const dir = fs.mkdtempSync(path.join(os.homedir(), '.cache', 'inbox-'));
+    const file = path.join(dir, 'sneaky.md');
+    await fsp.writeFile(file, Buffer.from('%PDF-1.4\nfake'));
+    const result = await validateInboxFile(file, new AbortController().signal);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.data['extension']).toBe('.md');
+      expect(result.error.data['detected_mime']).toBe('application/pdf');
+    }
   });
 });
