@@ -135,6 +135,54 @@ export const EgressEvent = TelemetryEvent;
 /** @deprecated use TelemetryEventType */
 export type EgressEventType = TelemetryEventType;
 
+// --- PREREQ-002 (SP-000-lite) — nfr_008_pilot event class ---------------------
+//
+// Standalone event family, distinct from the SP-001/SP-002 egress + resource
+// union. Discriminator is `event_class` (not `event`) per the FR-PILOT-005
+// envelope convention. The pilot harness emits one of these per query turn to
+// `Paths.pilotTelemetry()/pilot-iter{N}.jsonl`.
+//
+// References:
+//   - specs/000-nfr-008-pilot-lite/spec.md FR-PILOT-005
+//   - Architect AUDIT-001: retrieval_outcome capped at 1024 chars
+//   - Constitution Principle XIII (schema-enforced telemetry)
+
+export const PilotSeverity = z.enum(['info', 'warn', 'error']);
+export type PilotSeverityType = z.infer<typeof PilotSeverity>;
+
+export const PilotQueryBucket = z.enum([
+  'knowledge_grounded',
+  'general',
+  'adversarial',
+]);
+export type PilotQueryBucketType = z.infer<typeof PilotQueryBucket>;
+
+export const PilotRetrievalPattern = z.enum([
+  'factual_lookup',
+  'recall_by_context',
+  'multi_doc_synthesis',
+]);
+export type PilotRetrievalPatternType = z.infer<typeof PilotRetrievalPattern>;
+
+export const NfrPilotEvent = z.object({
+  event_class: z.literal('nfr_008_pilot'),
+  severity: PilotSeverity,
+  timestamp: ISO8601,
+  run_id: z.string().uuid(),
+  iteration: z.union([z.literal(1), z.literal(2)]),
+  model: z.literal('qwen3:8b'),
+  prompt_variant: z.string(),
+  query_id: z.string(),
+  query_bucket: PilotQueryBucket,
+  retrieval_pattern: PilotRetrievalPattern.nullable(),
+  tool_invoked: z.boolean(),
+  tool_arguments_valid: z.boolean(),
+  malformed_call_payload: z.string().max(2048).nullable(),
+  retrieval_outcome: z.string().max(1024),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type NfrPilotEventType = z.infer<typeof NfrPilotEvent>;
+
 /** POSIX PIPE_BUF on Linux. Append-atomic ceiling. */
 export const TELEMETRY_MAX_BYTES = 4096;
 

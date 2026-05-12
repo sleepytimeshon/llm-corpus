@@ -48,6 +48,11 @@ export const Paths = Object.freeze({
 
   // --- Derived: state/ ---
   telemetry: (): string => path.join(Paths.state(), 'telemetry.jsonl'),
+  // PREREQ-001 (SP-000-lite) — directory for per-iteration pilot telemetry
+  // streams. Distinct from Paths.telemetry() (file). Composes from
+  // Paths.state() — no new XDG base introduced. See
+  // specs/000-nfr-008-pilot-lite/spec.md FR-PILOT-005 / FR-PILOT-006.
+  pilotTelemetry: (): string => path.join(Paths.state(), 'pilot-telemetry'),
   drainLock: (): string => path.join(Paths.state(), 'drain.lock'),
   sourceIndex: (): string => path.join(Paths.state(), 'source-index.jsonl'),
 

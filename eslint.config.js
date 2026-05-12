@@ -133,12 +133,18 @@ export default [
   },
 
   // Test files — relax some rules.
+  // `paths-from-resolver-only` is disabled here because tests use synthetic
+  // `/tmp/...` literals to drive XDG-override behavior on the Paths resolver
+  // (e.g., `process.env.CORPUS_HOME = '/tmp/corpus-home'`). These are inputs
+  // to the test, not real filesystem paths. Production code under packages/
+  // continues to be governed by Constitution XIV.
   {
     files: ['tests/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
     rules: {
       'llm-corpus/no-forbidden-network-imports': 'off',
       'llm-corpus/no-direct-worker-spawn': 'off',
       'llm-corpus/no-process-exit-in-libs': 'off',
+      'llm-corpus/paths-from-resolver-only': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
     },
