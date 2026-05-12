@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain  *(Round 1 resolved 2026-05-09: Q1 substrate=curated sampler ~32 PDFs; Q2 query mining=B+C blend with bookmarks cross-check; Q3 retrieval-pattern defs=Engineer DRAFT pending Shon's PR-review ratification. Round 2 surfaced 2 NEW markers: Q4 malformed-tool-call semantics; Q5 telemetry on-disk format/retention. Round-2 resolution via second `/speckit-clarify` invocation before `/speckit-plan` is permitted.)*
+- [x] No [NEEDS CLARIFICATION] markers remain  *(Round 1 resolved 2026-05-09: Q1 substrate=curated sampler ~32 PDFs; Q2 query mining=B+C blend with bookmarks cross-check; Q3 retrieval-pattern defs=Engineer DRAFT pending Shon's PR-review ratification. Round 2 resolved 2026-05-11: Q4=Option C single-shot + secondary diagnostic + soft threshold; Q5=Option B JSONL + new `Paths.pilotTelemetry()` + iteration-suffixed retention.)*
 - [x] Requirements are testable and unambiguous  *(FR-PILOT-001 through FR-PILOT-012 each name a verifiable artifact or behavior)*
 - [x] Success criteria are measurable  *(SC-001 through SC-006 all reference verifiable artifacts: ledger entries, query-set lint, telemetry log inspection, filesystem audit)*
 - [x] Success criteria are technology-agnostic  *(SC-* frame outcomes in terms of artifacts and constraints, not specific languages or frameworks)*
@@ -32,10 +32,11 @@
 ## Notes
 
 - **Round 1 clarify (2026-05-09) — RESOLVED**: Q1 (seed corpus substrate), Q2 (query mining source), Q3 (retrieval-pattern operational definitions) integrated into spec. See `## Clarifications → Session 2026-05-09` and the new sections `## Retrieval Pattern Operational Definitions` + `## Substrate File List`.
-- **Round 2 clarify — OPEN**: Q4 (malformed-tool-call semantics: retry policy + soft/hard threshold) and Q5 (telemetry on-disk format + `Paths.*` key + retention policy) surfaced during Round 1 integration. Both block `/speckit-plan` (Phase 2). Engineer recommendations recorded inline in spec; Shon ratifies in next clarify pass.
+- **Round 2 clarify (2026-05-11) — RESOLVED**: Q4 (malformed-tool-call semantics → Option C) and Q5 (telemetry on-disk format + `Paths.*` + retention → Option B) integrated into spec. See `## Clarifications → Session 2026-05-11`. Spec amendments: FR-PILOT-005 (added `malformed_call_payload` field + telemetry path), FR-PILOT-006 (telemetry + summary paths), new FR-PILOT-013 (summary fields + soft threshold), new FR-PILOT-014 (retention), new Assumption (`Paths.pilotTelemetry()` resolver prerequisite), SC-003 + SC-006 amended, Edge Cases malformed-tool-call bullet rewritten. Q5 introduces a follow-up task for `/speckit-tasks` Phase 2: add `Paths.pilotTelemetry()` to `packages/contracts/src/paths.ts`.
 - **Q3 ratification still pending**: DRAFT operational definitions for `factual_lookup` / `recall_by_context` / `multi_doc_synthesis` authored by Engineer. Shon reviews + ratifies in PR review walkthrough; ratification is non-delegable per FR-PILOT-012.
 - ADR-010 supersedes ADR-005 — see `.product/ADRs/ADR-010-sp000-lite-supersedes-005.md`. The spec inherits ADR-010's binding constraints (50 queries, qwen3:8b, single variant + ≤1 iteration, binary exit) without re-deriving them.
 - AG-005 is invoked explicitly in FR-PILOT-009 and Assumptions: SP-000-lite is NOT the deferred labeled retrieval evaluation harness (OOS-012); the pilot measures *tool invocation rate*, not *retrieval quality*.
-- Constitution Principle XIII (telemetry-or-die) is invoked in FR-PILOT-005 and SC-003. Q5 (above) refines Principle XIII application to the on-disk format / retention layer.
+- Constitution Principle XIII (telemetry-or-die) is invoked in FR-PILOT-005, FR-PILOT-013, FR-PILOT-014, and SC-003.
+- Constitution Principle XIV (single resolver) is invoked in FR-PILOT-006, SC-006, and the new `Paths.pilotTelemetry()` Assumption.
 - Constitution Principle XVI (validation honesty / personal-scale floor framing) is invoked in FR-PILOT-008, SC-004, US3, and Assumptions.
-- **Sequencing reminder**: `/speckit-plan` is BLOCKED until Q4 and Q5 are answered AND Q3 DRAFT is ratified. The next Engineer invocation should be a second `/speckit-clarify` pass against Q4/Q5, NOT `/speckit-plan`.
+- **Sequencing reminder**: `/speckit-plan` is now UNBLOCKED at the spec level. The only outstanding gate is Q3 DRAFT ratification, which happens in PR-walkthrough (does NOT block `/speckit-plan`). For `/speckit-implement`, the `Paths.pilotTelemetry()` resolver-key task must land first; `/speckit-tasks` is responsible for capturing it.
