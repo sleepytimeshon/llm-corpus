@@ -110,19 +110,271 @@ export const ResourceReadEvent = z.object({
 });
 export type ResourceReadEventType = z.infer<typeof ResourceReadEvent>;
 
+// --- SP-003 — Ingest-pipeline event classes (14 additive variants) ----------
+//
+// References:
+//   - specs/003-ingest-pipeline/plan.md PREREQ-003
+//   - specs/003-ingest-pipeline/data-model.md §"Entity 10 — Telemetry Event"
+//   - specs/003-ingest-pipeline/spec.md FR-INGEST-009
+//
+// Shared envelope: `event`, `timestamp`, `severity`, `outcome`. Discriminator
+// is `event` (consistent with SP-001/SP-002 union shape; the PILOT family's
+// `event_class` discriminator lives in its own standalone union).
+//
+// String field bounds per data-model.md size-budget table — `message` is
+// capped to 1024 chars, `file_path` to 4096 chars, so the worst-case
+// `persist.failed` payload (longest variant) stays under Constitution IX's
+// 4096-byte append-atomic limit when serialized as JSON. Total payload bound
+// is enforced at emitTelemetry() time via TelemetrySizeExceededError.
+
+const Sp003Severity = z.enum(['info', 'warn', 'error']);
+const Sp003Outcome = z.enum([
+  'success',
+  'rejected',
+  'deduplicated',
+  'failed',
+  'aborted',
+]);
+const Sp003Stage = z.enum(['validate', 'normalize', 'persist']);
+
+const FilePath = z.string().max(4096);
+const Sha256Hex = z.string().regex(/^[0-9a-f]{64}$/);
+const Sp003DocId = z.string().regex(/^doc-[0-9a-f]{8}$/);
+const BoundedMessage = z.string().max(1024);
+
+const Sp003MimeType = z.enum([
+  'application/pdf',
+  'text/markdown',
+  'text/plain',
+  'text/html',
+]);
+
+const Sp003ErrorCode = z.enum([
+  'filename_sanity_failed',
+  'mime_not_allowlisted',
+  'mime_mismatch',
+  'size_exceeded',
+  'file_unstable',
+  'extract_failed',
+  'normalize_failed',
+  'persist_failed',
+  'telemetry_write_failed',
+  'aborted',
+]);
+
+const FilenameSanityReason = z.enum([
+  'null_byte',
+  'path_traversal',
+  'control_character',
+  'zero_length',
+]);
+
+const WatcherLimitKind = z.enum(['inotify_watches', 'open_files', 'unknown']);
+
+// ---- inbox.* validation-gate events ----
+
+export const InboxAllowlistHitEvent = z.object({
+  event: z.literal('inbox.allowlist_hit'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  mime_type: Sp003MimeType,
+  size_bytes: z.number().int().nonnegative(),
+});
+export type InboxAllowlistHitEventType = z.infer<typeof InboxAllowlistHitEvent>;
+
+export const InboxAllowlistMissEvent = z.object({
+  event: z.literal('inbox.allowlist_miss'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  mime_type: z.string().max(256),
+  error_code: z.literal('mime_not_allowlisted'),
+});
+export type InboxAllowlistMissEventType = z.infer<typeof InboxAllowlistMissEvent>;
+
+export const InboxMimeMismatchEvent = z.object({
+  event: z.literal('inbox.mime_mismatch'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  extension: z.string().max(32),
+  detected_mime: z.string().max(256),
+  error_code: z.literal('mime_mismatch'),
+});
+export type InboxMimeMismatchEventType = z.infer<typeof InboxMimeMismatchEvent>;
+
+export const InboxSizeExceededEvent = z.object({
+  event: z.literal('inbox.size_exceeded'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  size_bytes: z.number().int().nonnegative(),
+  max_bytes: z.number().int().nonnegative(),
+  error_code: z.literal('size_exceeded'),
+});
+export type InboxSizeExceededEventType = z.infer<typeof InboxSizeExceededEvent>;
+
+export const InboxFilenameSanityFailedEvent = z.object({
+  event: z.literal('inbox.filename_sanity_failed'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  error_code: z.literal('filename_sanity_failed'),
+  reason: FilenameSanityReason,
+});
+export type InboxFilenameSanityFailedEventType = z.infer<
+  typeof InboxFilenameSanityFailedEvent
+>;
+
+export const InboxWatcherResourceExhaustedEvent = z.object({
+  event: z.literal('inbox.watcher_resource_exhausted'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  errno: z.string().max(32),
+  limit_kind: WatcherLimitKind,
+  message: BoundedMessage,
+});
+export type InboxWatcherResourceExhaustedEventType = z.infer<
+  typeof InboxWatcherResourceExhaustedEvent
+>;
+
+// ---- ingest.* pipeline events ----
+
+export const IngestDedupHitEvent = z.object({
+  event: z.literal('ingest.dedup_hit'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  hash: Sha256Hex,
+  existing_doc_id: Sp003DocId,
+});
+export type IngestDedupHitEventType = z.infer<typeof IngestDedupHitEvent>;
+
+export const IngestDedupMissEvent = z.object({
+  event: z.literal('ingest.dedup_miss'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  hash: Sha256Hex,
+});
+export type IngestDedupMissEventType = z.infer<typeof IngestDedupMissEvent>;
+
+export const IngestNormalizedEvent = z.object({
+  event: z.literal('ingest.normalized'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  doc_id: Sp003DocId,
+  mime_type: Sp003MimeType,
+  body_path: z.string().max(4096),
+});
+export type IngestNormalizedEventType = z.infer<typeof IngestNormalizedEvent>;
+
+export const IngestCompletedEvent = z.object({
+  event: z.literal('ingest.completed'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  doc_id: Sp003DocId,
+  hash: Sha256Hex,
+  duration_ms: z.number().int().nonnegative(),
+  mime_type: Sp003MimeType,
+});
+export type IngestCompletedEventType = z.infer<typeof IngestCompletedEvent>;
+
+export const IngestFileUnstableEvent = z.object({
+  event: z.literal('ingest.file_unstable'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  error_code: z.literal('file_unstable'),
+  stat_before: z.number().int().nonnegative(),
+  stat_after: z.number().int().nonnegative(),
+});
+export type IngestFileUnstableEventType = z.infer<typeof IngestFileUnstableEvent>;
+
+export const IngestAbortedEvent = z.object({
+  event: z.literal('ingest.aborted'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  doc_id: Sp003DocId.optional(),
+  stage: Sp003Stage,
+});
+export type IngestAbortedEventType = z.infer<typeof IngestAbortedEvent>;
+
+// ---- pipeline / persist events ----
+
+export const PipelineLockContentionEvent = z.object({
+  event: z.literal('pipeline.lock_contention'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  lock_path: z.string().max(4096),
+  requesting_pid: z.number().int().nonnegative(),
+});
+export type PipelineLockContentionEventType = z.infer<
+  typeof PipelineLockContentionEvent
+>;
+
+export const PersistFailedEvent = z.object({
+  event: z.literal('persist.failed'),
+  timestamp: ISO8601,
+  severity: Sp003Severity,
+  outcome: Sp003Outcome,
+  file_path: FilePath,
+  error_code: Sp003ErrorCode,
+  message: BoundedMessage,
+  stage: Sp003Stage,
+});
+export type PersistFailedEventType = z.infer<typeof PersistFailedEvent>;
+
+// Re-export error_code enum so consumers (e.g., sidecar writer) bind against
+// the same closed set.
+export const Sp003ErrorCodeEnum = Sp003ErrorCode;
+export type Sp003ErrorCodeType = z.infer<typeof Sp003ErrorCode>;
+
 // --- Discriminated union (renamed in SP-002 — additive) ---
 
 /**
  * The full telemetry-event discriminated union. SP-001 shipped this as
  * `EgressEvent` with three variants; SP-002 renames it and adds the
- * `resource.read` variant. The legacy `EgressEvent` name is exported below
- * as a deprecated alias so SP-001 callers continue to compile.
+ * `resource.read` variant. SP-003 (PREREQ-003) extends it additively with
+ * 14 ingest-pipeline event classes. The legacy `EgressEvent` name is
+ * exported below as a deprecated alias so SP-001 callers continue to compile.
  */
 export const TelemetryEvent = z.discriminatedUnion('event', [
   EgressAttemptedEvent,
   EgressBlockedEvent,
   EgressCheckpointEvent,
   ResourceReadEvent,
+  // SP-003 additions:
+  InboxAllowlistHitEvent,
+  InboxAllowlistMissEvent,
+  InboxMimeMismatchEvent,
+  InboxSizeExceededEvent,
+  InboxFilenameSanityFailedEvent,
+  InboxWatcherResourceExhaustedEvent,
+  IngestDedupHitEvent,
+  IngestDedupMissEvent,
+  IngestNormalizedEvent,
+  IngestCompletedEvent,
+  IngestFileUnstableEvent,
+  IngestAbortedEvent,
+  PipelineLockContentionEvent,
+  PersistFailedEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 

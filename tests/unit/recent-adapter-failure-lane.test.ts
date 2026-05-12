@@ -51,11 +51,11 @@ describe('buildRecent() failure-lane exclusion (T059 / US3 AS2 / Constitution X)
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES
         ('doc-aa000001', 'Live',    'a.md', '/a', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:30:00Z', 'success'),
+         '02ccd9ef3784768cb60963a40e4a45f499bea1abf4925a656f02b734e8d67096', '2026-05-15T14:30:00Z', 'success'),
         ('doc-aa000002', 'Live2',   'b.md', '/b', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:25:00Z', 'success'),
+         '9996229af2dd45c1fb7cd416fb1b4d0bb5c572d0aeb0e56592380019e1f23f3c', '2026-05-15T14:25:00Z', 'success'),
         ('doc-7a570001', 'Trashed', 't.md', '/t', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T15:00:00Z', 'trashed')
+         '28cf67ecc71bb9ed68a8d908737cdbba4e7d40d70e7a881c243ea7af4a9d03dc', '2026-05-15T15:00:00Z', 'trashed')
       `);
       const ac = new AbortController();
       const result = await buildRecent(ac.signal);

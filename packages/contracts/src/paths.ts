@@ -67,6 +67,12 @@ export const Paths = Object.freeze({
   processed: (): string => path.join(Paths.data(), 'docs', 'processed'),
   failed: (): string => path.join(Paths.data(), 'docs', 'failed'),
   trash: (): string => path.join(Paths.data(), 'docs', 'trash'),
+  // SP-003 PREREQ-001 — canonical body file root, distinct from the
+  // inbox/pending/processed/failed subtree at the same Paths.docs() umbrella.
+  // Body files written under Paths.docsStore() + '/<id-prefix>/<doc-id>.md'
+  // per plan.md Decision I (256-way sharding). Derived getter — no new XDG
+  // base introduced (Constitution XIV). See specs/003-ingest-pipeline.
+  docsStore: (): string => path.join(Paths.data(), 'docs', 'store'),
 
   // --- Derived: config/ ---
   configFile: (): string => path.join(Paths.config(), 'config.toml'),

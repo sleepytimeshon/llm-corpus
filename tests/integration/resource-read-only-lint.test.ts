@@ -152,7 +152,7 @@ describe('SC-010 read-only enforcement (T068)', () => {
                 'source_path: /inbox/example.md',
                 "ingest_timestamp: '2026-05-15T14:30:00Z'",
                 'mime_type: text/markdown',
-                'hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                'hash: 314a68212ae19adad622505f29781bf7e6870c5bcf1a794515aac24667398174',
                 '---',
                 '',
                 `# ${id}\n`,

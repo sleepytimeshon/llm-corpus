@@ -67,11 +67,11 @@ describe('buildRecent() (T058 / FR-007)', () => {
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES
         ('doc-cccccccc', 'C', 'c.md', '/c', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:30:00Z', 'success'),
+         '8cff697fd63b07c62bc40357d44a9180d512cc8cb347cb9ddc7fd7fecd0c8f85', '2026-05-15T14:30:00Z', 'success'),
         ('doc-aaaaaaaa', 'A', 'a.md', '/a', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:30:00Z', 'success'),
+         'c11d84923e68ec80a2ef3f97b79dbb9a85a4c9eb3d6e12da9c39d37a2475236c', '2026-05-15T14:30:00Z', 'success'),
         ('doc-bbbbbbbb', 'B', 'b.md', '/b', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:30:00Z', 'success')
+         '34886df7339ce536522a4e9659a592d80fdbeae14000ceba70c6d65947893afe', '2026-05-15T14:30:00Z', 'success')
       `);
       const ac = new AbortController();
       const result = await buildRecent(ac.signal);
@@ -96,7 +96,7 @@ describe('buildRecent() (T058 / FR-007)', () => {
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES ('doc-aa000001', 'Tagged', 't.md', '/t', 'devops',
                 '["sqlite","search","fts5"]', 'tutorial', 'article', 'text/markdown',
-                'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                '02ccd9ef3784768cb60963a40e4a45f499bea1abf4925a656f02b734e8d67096',
                 '2026-05-15T14:30:00Z', 'success')
       `);
       const ac = new AbortController();
@@ -124,11 +124,11 @@ describe('buildRecent() (T058 / FR-007)', () => {
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES
         ('doc-aa000001', 'A', 'a.md', '/a', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:30:00Z', 'success'),
+         '02ccd9ef3784768cb60963a40e4a45f499bea1abf4925a656f02b734e8d67096', '2026-05-15T14:30:00Z', 'success'),
         ('doc-aa000002', 'B', 'b.md', '/b', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:25:00Z', 'success'),
+         '9996229af2dd45c1fb7cd416fb1b4d0bb5c572d0aeb0e56592380019e1f23f3c', '2026-05-15T14:25:00Z', 'success'),
         ('doc-aa000003', 'C', 'c.md', '/c', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:20:00Z', 'success')
+         '81a8430cd69d665f89c8eebdbd668ebc933713f7a98984747bf49ec361501d29', '2026-05-15T14:20:00Z', 'success')
       `);
       const ac = new AbortController();
       // Default N=10; only 3 docs exist.

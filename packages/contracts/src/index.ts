@@ -15,3 +15,6 @@ export * from './version.js';
 export * from './yaml.js';
 export * from './markdown-frontmatter.js';
 export * from './resource-schemas.js';
+
+// SP-003 additions
+export * from './with-temp-dir.js';

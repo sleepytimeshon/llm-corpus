@@ -36,7 +36,7 @@ function frontmatterFor(id: string): string {
     'source_path: /inbox/example.md',
     "ingest_timestamp: '2026-05-15T14:30:00Z'",
     'mime_type: text/markdown',
-    'hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    'hash: 203a252f81339c49f99ae0d484e45842ade66621d0844e8caabbecfb90b77d70',
     '---',
     '',
   ].join('\n');
@@ -120,7 +120,7 @@ describe('fetchDocument() (T047 / FR-008)', () => {
         INSERT INTO documents (id, title, body_path, source_path, facet_domain,
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES ('doc-fa110001', 'Failed', 'doc-fa110001.md', '/inbox/f.md', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:00:00Z', 'failed')
+         'e8a1dde01fb36f681e67d37e836c63d8636380ff976b0560dedd2f5b35ac3183', '2026-05-15T14:00:00Z', 'failed')
       `);
       const ac = new AbortController();
       const result = await fetchDocument('doc-fa110001', ac.signal);
@@ -141,7 +141,7 @@ describe('fetchDocument() (T047 / FR-008)', () => {
         INSERT INTO documents (id, title, body_path, source_path, facet_domain,
           tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES ('doc-7a570001', 'Trashed', 'doc-7a570001.md', '/inbox/t.md', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '2026-05-15T14:00:00Z', 'trashed')
+         '28cf67ecc71bb9ed68a8d908737cdbba4e7d40d70e7a881c243ea7af4a9d03dc', '2026-05-15T14:00:00Z', 'trashed')
       `);
       const ac = new AbortController();
       const result = await fetchDocument('doc-7a570001', ac.signal);
