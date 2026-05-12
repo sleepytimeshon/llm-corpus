@@ -19,8 +19,9 @@
 export type PilotIteration = 1 | 2;
 
 /**
- * Phase-3 placeholder for the harness driver options.
- * Concrete signature lands in T024 (`runPilot`).
+ * Phase-3 placeholder kept for backwards compatibility with Phase 1's CLI
+ * stub. The concrete options surface for `runPilot` lives on
+ * `RunPilotOptions` in `./driver.ts` and is re-exported below.
  */
 export interface PilotRunOptions {
   readonly variant: string;
@@ -63,3 +64,18 @@ export {
   type PilotSummary,
   type PilotSummaryRunMeta,
 } from './summary.js';
+
+// --- Phase 3 (T024) — harness driver + path resolver -----------------------
+
+export {
+  runPilot,
+  getHarnessPaths,
+  type RunPilotOptions,
+  type RunPilotResult,
+  type OllamaClient,
+  type OllamaChatRequest,
+  type OllamaChatResponse,
+  type OllamaToolCall,
+  type McpClient,
+  type McpToolResult,
+} from './driver.js';

@@ -11,6 +11,12 @@ export default defineConfig({
       'tests/lint-fixtures/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
     ],
+    // Per-test-file CORPUS_HOME isolation. Each vitest worker gets a unique
+    // tmpdir-rooted CORPUS_HOME so parallel test files do not race on
+    // `Paths.pilotTelemetry()` / `Paths.telemetry()` writes. Tests that need
+    // to assert default-$HOME behavior override this in their own
+    // beforeEach/beforeAll (see tests/unit/paths.test.ts).
+    setupFiles: ['./tests/_setup/per-file-corpus-home.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
