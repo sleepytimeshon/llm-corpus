@@ -10,6 +10,7 @@
 // into `process.exit` codes. Library packages MUST NOT call process.exit.
 
 import { startMcpServer } from '@llm-corpus/transport';
+import { runPilotCommand } from './pilot/command.js';
 
 interface ParsedArgs {
   subcommand: string | undefined;
@@ -31,6 +32,7 @@ function printUsage(): void {
       '',
       'Subcommands:',
       '  mcp        Start the MCP server on stdio',
+      '  pilot      NFR-008 reduced-scope pilot harness (SP-000-Lite)',
       '  --help     Print this message',
       '',
       'SP-001 ships only the `mcp` subcommand. Ingest/search land in SP-003+.',
@@ -60,11 +62,13 @@ async function runMcp(): Promise<number> {
 }
 
 async function main(argv: readonly string[]): Promise<number> {
-  const { subcommand } = parseArgs(argv);
+  const { subcommand, rest } = parseArgs(argv);
 
   switch (subcommand) {
     case 'mcp':
       return runMcp();
+    case 'pilot':
+      return runPilotCommand(rest);
     case undefined:
     case '--help':
     case '-h':

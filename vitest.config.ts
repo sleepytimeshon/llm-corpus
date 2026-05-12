@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
+      'tests/contract/**/*.test.ts',
       'tests/lint-fixtures/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
     ],
