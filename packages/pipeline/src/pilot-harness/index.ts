@@ -27,3 +27,39 @@ export interface PilotRunOptions {
   readonly iteration: PilotIteration;
   readonly signal: AbortSignal;
 }
+
+// --- Phase 3 (T018, T019, T022, T023) public re-exports --------------------
+
+export {
+  lintQuerySet,
+  QueryRowSchema,
+  QuerySetSchema,
+  type QueryRow,
+  type QuerySet,
+  type ValidatedQuerySet,
+  type LintError,
+} from './stratification.js';
+
+export {
+  verifyQ3Ratified,
+  type RatificationStatus,
+  type RatificationError,
+  type RetrievalPatternName,
+} from './q3-ratification.js';
+
+export {
+  mkPilotEvent,
+  EventConstructionError,
+  type PilotEventInputFields,
+} from './events.js';
+
+export {
+  mkPilotSummary,
+  writePilotSummary,
+  PilotSummarySchema,
+  SummaryError,
+  WriteError,
+  PERSONAL_SCALE_QUALIFIER,
+  type PilotSummary,
+  type PilotSummaryRunMeta,
+} from './summary.js';
