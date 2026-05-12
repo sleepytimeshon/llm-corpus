@@ -47,7 +47,7 @@ describe('corpus://docs integrity-loss (T052)', () => {
         'source_path: /inbox/x.md',
         "ingest_timestamp: '2026-05-15T14:30:00Z'",
         'mime_type: text/markdown',
-        'hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        'hash: 203a252f81339c49f99ae0d484e45842ade66621d0844e8caabbecfb90b77d70',
         '---',
         '',
         'body content',

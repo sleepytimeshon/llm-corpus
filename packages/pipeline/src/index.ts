@@ -1,7 +1,15 @@
-// T021 — @llm-corpus/pipeline stub.
-// Empty placeholder for NFR-001 lint scope. Real implementation lands in SP-003.
+// @llm-corpus/pipeline — SP-003 ingest pipeline core.
+//
+// Previously a stub; SP-003 grows it into the functional pipeline producing
+// `documents` rows from inbox files via watcher → validation → hash →
+// normalize → persist with drain-lock serialization.
 
-// SP-000-Lite Phase 1 (T005): pilot-harness library subdirectory.
-// Phase 1 exports types only; behavior lands in Phase 3 (T018–T026).
 export * from './pilot-harness/index.js';
-
+export * from './validation-gate.js';
+export * from './hasher.js';
+export * from './persister.js';
+export * from './failure-lane.js';
+export * from './drain-lock.js';
+export * from './inbox-watcher.js';
+export * from './policies.js';
+export * from './drain-orchestrator.js';

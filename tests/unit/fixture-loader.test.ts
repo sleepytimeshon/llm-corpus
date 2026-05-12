@@ -69,7 +69,7 @@ describe('loadFixture() (T014, plan.md Decision B)', () => {
         INSERT INTO documents
         (id, title, body_path, source_path, facet_domain, tags_json, facet_type, source_type, mime_type, hash, ingest_timestamp, status)
         VALUES ('doc-aaaaaaaa', 'A', 'a.md', '/a', 'devops', '[]', 'tutorial', 'article', 'text/markdown',
-                'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                'c11d84923e68ec80a2ef3f97b79dbb9a85a4c9eb3d6e12da9c39d37a2475236c',
                 '2026-05-15T14:30:00Z', 'success')
       `);
 

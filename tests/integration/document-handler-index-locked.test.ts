@@ -64,7 +64,7 @@ describe('corpus://docs index_locked (T051 / SC-008 part 2)', () => {
         facet_type: 'tutorial',
         source_type: 'article',
         mime_type: 'text/markdown',
-        hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        hash: 'ba85d91e7a14fba88d2fc3a876a73f689da1b4888c1cfbcb655ffd8148713b21',
         ingest_timestamp: '2026-05-15T14:00:00Z',
         status: 'success',
       });

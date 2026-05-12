@@ -206,3 +206,219 @@ export class FrontmatterParseError extends Error {
     }
   }
 }
+
+// ============================================================================
+// SP-003 — Ingest-pipeline typed errors (PREREQ-004)
+// ============================================================================
+//
+// References:
+//   - specs/003-ingest-pipeline/plan.md PREREQ-004
+//   - specs/003-ingest-pipeline/spec.md FR-INGEST-007 (closed error_code enum)
+//   - Constitution Principle XI (Library/CLI Boundary)
+//
+// Every library function in packages/{pipeline,extract,storage} returns
+// Result<T, E> where E is one of these typed errors. None of these constructors
+// performs IO or invokes process.exit (Constitution XI).
+
+/**
+ * The closed enum of error codes that ingest stages can surface. Mirrors the
+ * `.error.json` sidecar `error_code` field (data-model.md Entity 5) and the
+ * Sp003ErrorCode union in telemetry.ts.
+ */
+export type IngestErrorCode =
+  | 'filename_sanity_failed'
+  | 'mime_not_allowlisted'
+  | 'mime_mismatch'
+  | 'size_exceeded'
+  | 'file_unstable'
+  | 'extract_failed'
+  | 'normalize_failed'
+  | 'persist_failed'
+  | 'telemetry_write_failed'
+  | 'aborted';
+
+export type IngestStage = 'validate' | 'normalize' | 'persist';
+
+/**
+ * Generic ingest-pipeline error. Specific stage errors below subclass
+ * IngestError so callers can pattern-match on `instanceof IngestError` for
+ * the common case OR on the specific class for stage-aware handling.
+ */
+export class IngestError extends Error {
+  readonly code = 'INGEST_ERROR' as const;
+  override readonly name: string = 'IngestError';
+  readonly data: {
+    stage?: IngestStage;
+    error_code?: IngestErrorCode;
+    retriable?: boolean;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      stage?: IngestStage;
+      error_code?: IngestErrorCode;
+      retriable?: boolean;
+      message?: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Ingest error${data.stage ? ` (stage=${data.stage})` : ''}${
+        data.error_code ? `: ${data.error_code}` : ''
+      }${data.message ? ` — ${data.message}` : ''}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * Validation-gate rejection (filename sanity / extension / MIME-sniff / size).
+ * The `error_code` field is the FR-INGEST-007 closed enum.
+ */
+export class ValidationError extends IngestError {
+  override readonly name = 'ValidationError';
+  override readonly data: {
+    error_code: IngestErrorCode;
+    message: string;
+    file_path?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: IngestErrorCode;
+      message: string;
+      file_path?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super({ stage: 'validate', ...data }, cause);
+    this.data = data;
+  }
+}
+
+/**
+ * Normalization-stage failure (per-MIME extractor / converter error).
+ */
+export class NormalizeError extends IngestError {
+  override readonly name = 'NormalizeError';
+  override readonly data: {
+    error_code: IngestErrorCode;
+    message?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: IngestErrorCode;
+      message?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super({ stage: 'normalize', ...data }, cause);
+    this.data = data;
+  }
+}
+
+/**
+ * Persist-stage failure (SQLite INSERT, body-file rename, transaction
+ * rollback, UNIQUE constraint violation, etc.).
+ */
+export class PersistError extends IngestError {
+  override readonly name = 'PersistError';
+  override readonly data: {
+    error_code: IngestErrorCode;
+    message?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: IngestErrorCode;
+      message?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super({ stage: 'persist', ...data }, cause);
+    this.data = data;
+  }
+}
+
+/**
+ * Watcher-level failure (inotify exhaustion, fs.watch boot failure, etc.).
+ * Routes through the daemon's master AbortController; the daemon emits
+ * `inbox.watcher_resource_exhausted` telemetry before exiting.
+ */
+export class WatcherError extends Error {
+  readonly code = 'WATCHER_ERROR' as const;
+  override readonly name = 'WatcherError';
+  readonly data: {
+    errno?: string;
+    limit_kind?: string;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      errno?: string;
+      limit_kind?: string;
+      message?: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Watcher error${data.errno ? ` (errno=${data.errno})` : ''}${
+        data.message ? ` — ${data.message}` : ''
+      }`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * Returned (as Result.err) by acquireDrainLock when another drain process
+ * already holds the flock. Concurrent invocations exit 0 after emitting
+ * `pipeline.lock_contention` telemetry (FR-INGEST-011).
+ */
+export class LockContentionError extends Error {
+  readonly code = 'LOCK_CONTENTION' as const;
+  override readonly name = 'LockContentionError';
+  readonly data: {
+    lock_path: string;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    lock_path: string;
+    message?: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `Lock contention on ${data.lock_path}${
+        data.message ? `: ${data.message}` : ''
+      }`,
+    );
+    this.data = data;
+  }
+}

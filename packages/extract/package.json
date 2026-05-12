@@ -7,6 +7,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@llm-corpus/contracts": "0.1.0"
+    "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/storage": "0.1.0",
+    "turndown": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/turndown": "^5.0.4"
   }
 }

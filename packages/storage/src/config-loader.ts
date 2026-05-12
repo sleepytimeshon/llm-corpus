@@ -21,9 +21,30 @@ export interface ResourceConfig {
   };
 }
 
+/**
+ * SP-003 ingest-pipeline configuration knobs read from `[ingest]` section of
+ * config.toml. See specs/003-ingest-pipeline/data-model.md §"Validation Gate
+ * Config" and plan.md Decisions E-I.
+ */
+export interface IngestConfig {
+  /** Validation gate per-file size cap, megabytes. Default 100. Range [1, 1024]. */
+  maxFileSizeMb: number;
+  /** Per-doc timeout under interactivePolicy, milliseconds. Default 60_000. */
+  perDocTimeoutMs: number;
+  /** Per-doc timeout under batchPolicy, milliseconds. Default 300_000. */
+  batchPerDocTimeoutMs: number;
+}
+
 const DEFAULT_RECENT_WINDOW_SIZE = 10;
 const RECENT_WINDOW_SIZE_MIN = 1;
 const RECENT_WINDOW_SIZE_MAX = 100;
+
+const DEFAULT_INGEST_MAX_FILE_SIZE_MB = 100;
+const INGEST_MAX_FILE_SIZE_MB_MIN = 1;
+const INGEST_MAX_FILE_SIZE_MB_MAX = 1024;
+const DEFAULT_INGEST_PER_DOC_TIMEOUT_MS = 60_000;
+const DEFAULT_INGEST_BATCH_PER_DOC_TIMEOUT_MS = 300_000;
+const INGEST_TIMEOUT_MS_MIN = 1000;
 
 /**
  * Load resource-related config from `Paths.config()/config.toml`.
@@ -86,4 +107,108 @@ export function loadResourceConfig(): ResourceConfig {
   }
 
   return { recent: { window_size: windowSize } };
+}
+
+/**
+ * Load SP-003 ingest-pipeline config from `Paths.config()/config.toml`
+ * `[ingest]` section. Defaults applied for any missing key. Out-of-range
+ * values throw ConfigurationError at boot.
+ *
+ * Defaults applied when:
+ *   - The file does not exist (ENOENT)
+ *   - The `[ingest]` section is missing
+ *   - Any individual key is missing
+ *
+ * Throws ConfigurationError when:
+ *   - `max_file_size_mb` is not an integer in [1, 1024]
+ *   - `per_doc_timeout_ms` is not an integer ≥ 1000
+ *   - `batch_per_doc_timeout_ms` is not an integer ≥ 1000
+ */
+export function loadIngestConfig(): IngestConfig {
+  const configPath = path.join(Paths.config(), 'config.toml');
+  let raw: string;
+  try {
+    raw = fs.readFileSync(configPath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return defaultIngestConfig();
+    }
+    throw err;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = TOML.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    throw new ConfigurationError({
+      key: 'config.toml',
+      reason: `failed to parse TOML: ${(err as Error).message ?? String(err)}`,
+    });
+  }
+
+  const ingestSection = parsed['ingest'] as
+    | {
+        max_file_size_mb?: unknown;
+        per_doc_timeout_ms?: unknown;
+        batch_per_doc_timeout_ms?: unknown;
+      }
+    | undefined;
+  if (!ingestSection) {
+    return defaultIngestConfig();
+  }
+
+  const maxFileSizeMb = validateInt(
+    ingestSection.max_file_size_mb,
+    'ingest.max_file_size_mb',
+    DEFAULT_INGEST_MAX_FILE_SIZE_MB,
+    INGEST_MAX_FILE_SIZE_MB_MIN,
+    INGEST_MAX_FILE_SIZE_MB_MAX,
+  );
+  const perDocTimeoutMs = validateInt(
+    ingestSection.per_doc_timeout_ms,
+    'ingest.per_doc_timeout_ms',
+    DEFAULT_INGEST_PER_DOC_TIMEOUT_MS,
+    INGEST_TIMEOUT_MS_MIN,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const batchPerDocTimeoutMs = validateInt(
+    ingestSection.batch_per_doc_timeout_ms,
+    'ingest.batch_per_doc_timeout_ms',
+    DEFAULT_INGEST_BATCH_PER_DOC_TIMEOUT_MS,
+    INGEST_TIMEOUT_MS_MIN,
+    Number.MAX_SAFE_INTEGER,
+  );
+
+  return { maxFileSizeMb, perDocTimeoutMs, batchPerDocTimeoutMs };
+}
+
+function defaultIngestConfig(): IngestConfig {
+  return {
+    maxFileSizeMb: DEFAULT_INGEST_MAX_FILE_SIZE_MB,
+    perDocTimeoutMs: DEFAULT_INGEST_PER_DOC_TIMEOUT_MS,
+    batchPerDocTimeoutMs: DEFAULT_INGEST_BATCH_PER_DOC_TIMEOUT_MS,
+  };
+}
+
+function validateInt(
+  value: unknown,
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  if (value === undefined || value === null) return defaultValue;
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new ConfigurationError({
+      key,
+      reason: `must be an integer (got ${typeof value === 'number' ? value : typeof value})`,
+    });
+  }
+  if (value < min || value > max) {
+    throw new ConfigurationError({
+      key,
+      reason: `must be in [${min}, ${max}] (got ${value})`,
+    });
+  }
+  return value;
 }

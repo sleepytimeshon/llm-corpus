@@ -14,6 +14,7 @@
 // error, NOT as silent test rot (R6).
 
 import type { Database as DatabaseType } from 'better-sqlite3';
+import { runUniqueHashMigration } from './unique-hash-migration.js';
 
 // --- Canonical column lists (R6) ---
 
@@ -112,4 +113,8 @@ export function runSchemaMigration(db: DatabaseType): void {
   db.exec(DOCUMENTS_INDEX_FACET_DOMAIN_DDL);
   db.exec(TAXONOMY_TERMS_TABLE_DDL);
   db.exec(TAXONOMY_TERMS_INDEX_DDL);
+  // SP-003 PREREQ-002 — UNIQUE constraint on documents.hash for content-hash
+  // idempotency (FR-INGEST-004 defense-in-depth alongside application-level
+  // dedup). Idempotent on re-invocation via CREATE UNIQUE INDEX IF NOT EXISTS.
+  runUniqueHashMigration(db);
 }

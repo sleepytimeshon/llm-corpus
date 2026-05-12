@@ -15,4 +15,6 @@ export * from './config-loader.js';
 export * from './manifest-adapter.js';
 export * from './taxonomy-adapter.js';
 export * from './document-adapter.js';
+export * from './document-writer.js';
 export * from './recent-adapter.js';
+export * from './unique-hash-migration.js';
