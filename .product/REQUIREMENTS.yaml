@@ -1011,15 +1011,19 @@ requirements:
   quality_flag: conflicts-anti-goal
 
 - id: NFR-008
-  title: Local-LLM tool-use rate (≥N corpus.find calls per 100 llama queries — absolute)
-  description: 'Ollama-served llama3/qwen3 with corpus MCP attached invokes corpus.find ≥N times per
-
-    100 knowledge-grounded queries. ABSOLUTE target (CF-3 from Stage 1 handoff —
-
-    explicitly NOT relative-to-cloud-baseline; PM-Review confirmed C-006 invalid).
-
-    N to be set at Plan stage from Validate spike data. AG-004 → should-priority.'
-  priority: should
+  title: Local-LLM tool-use rate (deferred to v1.5+ under AI-as-principal framing — ADR-011)
+  description: 'Ollama-served local LLM with corpus MCP attached invokes corpus.find at-need when
+    the agent encounters knowledge gaps its training cutoff cannot fill. Per ADR-011 (supersedes
+    ADR-010, supersedes ADR-005): the original 100-query benchmark framing measured a
+    human-issues-natural-language-query → agent-decides-to-invoke flow that the product does NOT
+    center on. The product makes the agent the principal user of the corpus via FR-005 auto-loaded
+    resources at session start + UR-003 session-portability + WHITEPAPER §line 159 MCP-prompts
+    protocol distribution + ARCHITECTURE §5.3-5.4 agent-as-principal. v1.0.0 ships with no
+    validated tool-use rate floor (provisional N=20 from D-012 withdrawn per D-022; ADR-010 binary
+    exit option B discharged). v1.5+ re-pilot under at-need behavioral framing (auto-load coverage
+    smoke + real-prompt replay + skill-mediated workflow) is committed engineering work captured
+    for a future ADR ceremony.'
+  priority: nice_to_have
   category: nonfunctional
   dependencies:
     - FR-023
@@ -1031,11 +1035,18 @@ requirements:
     - metric: corpus_find_invocations_per_100_local_llm_queries
       value: null
       unit: count
-      test_method: 100-query benchmark run through Ollama-served model with MCP corpus server attached; count corpus.find tool invocations; absolute floor set at Plan stage from Validate spike data — MUST NOT reference cloud baseline
+      test_method: 'SUPERSEDED. The 100-query benchmark framing was measuring the wrong product
+        flow (human-issues-query → agent-decides-to-invoke) and is not appropriate evidence for
+        the AI-as-principal product. v1.5+ measurement re-spec (at-need behavioral test,
+        auto-load coverage, real-prompt replay) is a future ADR ceremony; do NOT cite this
+        metric or any floor value (including the withdrawn N=20 from D-012) in v1.0.0
+        documentation, README, or roadmap. The merged SP-000-Lite harness scaffolding (PR #9,
+        commit 8b3230d) is reusable for the v1.5 re-pilot; the spec package (PR #6, closed) is
+        preserved for v1.5 fork-from continuity if helpful.'
   acceptance_criteria:
     - feature: ./ACCEPTANCE-CRITERIA.feature
       scenarios:
-        - Local-LLM tool-use rate is an absolute target, not relative-to-cloud
+        - "NFR-008 deferred to v1.5+ per ADR-011 / D-022 — no v1.0.0 acceptance criterion binds"
   owner: Shon
   quality_flag: conflicts-anti-goal
 

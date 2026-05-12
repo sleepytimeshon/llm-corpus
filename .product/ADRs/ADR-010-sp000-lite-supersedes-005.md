@@ -7,12 +7,13 @@ tier: deep
 template_version: 3.0.0
 generated: 2026-05-09T02:45:00Z
 generated_by: ProductBuild (Phase 1a recovery)
-status: proposed
+status: superseded
 supersedes: ADR-005
-superseded_by: null
+superseded_by: ADR-011
 deciders: ["Shon"]
 date_proposed: 2026-05-09T02:45:00Z
-date_accepted: null
+date_accepted: 2026-05-09T02:45:00Z
+date_superseded: 2026-05-12T03:30:00Z
 product_type: software
 
 links:
@@ -29,7 +30,11 @@ tags: [nfr, local-llm, pilot, ollama, recovery, supersession]
 
 ## Status
 
-proposed
+superseded by ADR-011 (2026-05-12) — NFR-008 downgraded to `nice_to_have`; AI-as-principal-aligned validation deferred to v1.5. ADR-010's binary exit option B (formal downgrade) discharged via D-022. See ADR-011 §Context for the supersession rationale (premise drift surfaced when SP-002's auto-load resources + UR-003 session-portability + MCP-prompts protocol distribution made the agent the principal user of the corpus, invalidating ADR-005's human-issues-natural-language-query measurement substrate). Original ADR-010 content preserved verbatim below for historical record.
+
+### Original status (at acceptance via D-021, 2026-05-09)
+
+accepted
 
 ## Context
 
