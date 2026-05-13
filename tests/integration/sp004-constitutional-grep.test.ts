@@ -101,8 +101,7 @@ describe('Phase 6 — SP-004 constitutional grep-lints', () => {
     const hasErrors = /\s\d+\sproblems?\s\(\s*[1-9]/.test(out);
     if (hasErrors) {
       // Print the offending output for forensics.
-      // eslint-disable-next-line no-console
-      console.error(out);
+      process.stderr.write(out);
     }
     expect(hasErrors).toBe(false);
   });

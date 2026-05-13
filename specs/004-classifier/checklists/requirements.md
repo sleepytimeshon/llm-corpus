@@ -70,3 +70,44 @@
 - `documents.facet_domain` UNIQUE constraint: not applicable. Multiple documents may share the same facet_domain by design; only `hash` carries a UNIQUE constraint per SP-003 PREREQ-002.
 - `taxonomy_terms` PRIMARY KEY: `(axis, term)` (existing schema). SP-004's ON CONFLICT DO NOTHING uses this composite key.
 - This checklist marks every item PASS based on internal review. `/speckit-clarify` is OPTIONAL — the pre-resolved design decisions in the dispatch prompt cover the historically-ambiguous areas. Recommend proceeding directly to `/speckit-tasks` (Phase 0 prereqs → Phase 2 tests-first → etc.) per the plan's phase breakdown.
+
+---
+
+## Implementation outcomes (post-/speckit-implement)
+
+Every Constitution Principle re-confirmed `[x]` against actual code (not just spec text) per T063 Constitution Re-Eval and T064 outcome-mapping:
+
+| Principle | Implementing code citation | Verifying test |
+|---|---|---|
+| I. Local-First, No Egress | `packages/inference/src/ollama-adapter.ts` constructor asserts `baseUrl` starts with `http://localhost:` or `http://127.0.0.1:` — see `LOCALHOST_PREFIXES` constant | `tests/integration/sp004-no-body-in-telemetry.test.ts` (FIXTURE_CANARY_SP004 absent from telemetry) |
+| II. User Curates | `packages/storage/src/classify-persister.ts` `FORBIDDEN_FRONTMATTER_KEYS` set + destructure-rename of `confidence` | `tests/unit/classify-persister-no-confidence.test.ts` + `classify-persister-frontmatter-roundtrip.test.ts` (body section byte-preserved) |
+| III. Substrate, Not Surface | Zero new MCP code under `packages/transport/`; only `packages/cli/src/reenrich-command.ts` + daemon hook | (absence verified via PR diff inspection) |
+| IV. Single-User, Single-Machine | No multi-user code introduced | (no test required — IV is an absence-of-feature principle) |
+| V. Schema-Enforced Output | `packages/contracts/src/classifier-schema.ts` `ClassifierOutputZodSchema.strict()` + module-load `zodToJsonSchema` + post-processing | `tests/unit/classifier-schema-prereq.test.ts` (13 tests) + `tests/unit/classifier-validation.test.ts` (8 tests) |
+| VI. One Pipeline, Two Policies | `packages/pipeline/src/classify-stage.ts classifyStage(input)` invoked by both `packages/daemon/src/index.ts runClassifyPass` and `packages/cli/src/reenrich-command.ts runReenrichCommand` | `tests/integration/end-to-end-classify.test.ts` + `tests/integration/reenrich-cli.test.ts` |
+| VII. Cancellable, Bounded IO | `packages/inference/src/ollama-adapter.ts` `signal` end-to-end + `packages/pipeline/src/classify-stage.ts` per-doc `AbortController + setTimeout` (no Promise.race) | `tests/unit/ollama-adapter-abort.test.ts` + `tests/integration/classify-atomicity.test.ts` |
+| VIII. Atomic Writes & Transactional Index | `packages/storage/src/classify-persister.ts` BEGIN IMMEDIATE → UPDATE → INSERTs → rename → COMMIT | `tests/unit/classify-persister.test.ts` (4 tests) |
+| IX. Concurrency-Safe Shared State | `packages/daemon/src/index.ts runClassifyPass` + `packages/cli/src/reenrich-command.ts` re-acquire `Paths.drainLock()` | `tests/integration/reenrich-cli.test.ts` T044 (lock contention) |
+| X. Idempotent Pipeline Transitions | `packages/storage/src/document-writer.ts updateClassification` `WHERE id=? AND facet_type='unclassified'` | `tests/unit/classify-persister.test.ts` (UPDATE 0 rows → rollback) + `tests/integration/reenrich-cli.test.ts` T046 (idempotent re-run) |
+| XI. Library/CLI Boundary | Zero `process.exit` in `packages/{inference,pipeline,storage,contracts}/src/`; only `packages/cli/src/reenrich-command.ts runReenrichCli` exits | `tests/integration/sp004-constitutional-grep.test.ts` T058 |
+| XII. Subprocess Hygiene | Zero `execSync` / `child_process.exec` / `runTool(` in SP-004 source — Ollama is HTTP | `tests/integration/sp004-constitutional-grep.test.ts` T060 |
+| XIII. Telemetry-or-Die | 11 SP-004 telemetry event classes wired into `TelemetryEvent` Zod union in `packages/contracts/src/telemetry.ts`; emitted at every state transition in `classify-stage.ts` | `tests/unit/telemetry-sp004-classes.test.ts` (5 tests) |
+| XIV. XDG Paths via Single Resolver | All SP-004 paths through `Paths.docs()` / `Paths.failed()` / `Paths.cache()` / `Paths.telemetry()` / `Paths.drainLock()` | `tests/integration/sp004-constitutional-grep.test.ts` T059 |
+| XV. Dynamic Taxonomy with User-Reviewed Promotion | `packages/storage/src/taxonomy-terms-adapter.ts` SQL contains hardcoded `'proposed'` literal; function signature has no `state` parameter; promoted-state INSERT is structurally impossible | `tests/unit/taxonomy-terms-adapter.test.ts` (5 tests) + `tests/integration/no-established-insert-in-sp004.test.ts` (2 tests) |
+| XVI. Validation Honesty | Per-doc budget set as TARGET in `packages/pipeline/src/policies.ts` (60s interactive / 300s batch); empirical measurement deferred to operator (Decision F honesty); fallback to gemma3:4b via config | `specs/004-classifier/quickstart.md` operator walkthrough |
+
+### Tasks completed (Phase 1 → Phase 7)
+
+- Phase 1 — T001 (Ollama prereq verified on pai-node01: 0.21.0 + qwen3.5:9b + gemma3:4b).
+- Phase 2 — T002 through T015 (forward-compat plumbing).
+- Phase 3 — T016 through T039 (US1 autonomous classification; 14 unit tests + 4 integration tests + 10 implementation modules).
+- Phase 4 — T040 through T048 (`corpus reenrich` CLI; T043 + T045 deferred per Constitution XVI honesty — wire contract verified at library boundary).
+- Phase 5 — T049 through T056 (US3 verification; tests batched into 4 files).
+- Phase 6 — T057 through T062 (constitutional grep-lints; batched into 2 files).
+- Phase 7 — T063 (this re-eval) + T064 (this outcome mapping) + T065 (deferred — empirical wall-clock measured during operator walkthrough, not in CI) + T066 (quickstart already authored; operator-prereqs section added in T001 commit) + T067 (CLAUDE.md SP-004 surface section) + T068 (telemetry size budget verified ≤ 4096 bytes by T003 + T061's canary scan) + T069 (final commit pending).
+
+### Build/lint/test outcome at Phase 7 completion
+
+- `npm run build`: clean (TypeScript strict mode, all 8 packages composite-build).
+- `npm run lint`: exit 0 (eslint 9 flat config with 6 custom rules — `no-forbidden-network-imports`, `no-process-exit-in-libs`, `paths-from-resolver-only`, `no-direct-worker-spawn`, `no-shell-string-exec`, `no-writes-from-resource-handlers` — all scoped to cover SP-004 source via existing globs).
+- `npm run test`: 622 tests pass, 4 skipped (pre-existing SP-001/002/003 conditional skips), zero new skips introduced by SP-004.
