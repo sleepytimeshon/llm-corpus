@@ -17,6 +17,7 @@ import {
   runDrain,
 } from './daemon-commands.js';
 import { runReenrichCli } from './reenrich-command.js';
+import { runReindexCli } from './reindex-command.js';
 
 interface ParsedArgs {
   subcommand: string | undefined;
@@ -43,6 +44,7 @@ function printUsage(): void {
       '  daemon stop         Stop the running daemon (SIGTERM via PID file)',
       '  drain               One-shot drain (process inbox + pending once)',
       '  reenrich [--dry-run] Drain SP-003 sentinel rows via classify-stage',
+      '  reindex [--dry-run]  Backfill SP-005 FTS5 + vec + edges for classified docs',
       '  --help              Print this message',
       '',
     ].join('\n'),
@@ -89,6 +91,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return runDrain();
     case 'reenrich':
       return runReenrichCli(rest);
+    case 'reindex':
+      return runReindexCli(rest);
     case undefined:
     case '--help':
     case '-h':

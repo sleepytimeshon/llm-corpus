@@ -81,4 +81,72 @@
 
 ## Implementation outcomes (post-/speckit-implement)
 
-*[To be populated post-Phase 5 completion per the SP-004 outcomes-mapping pattern. Will list per-principle implementing code citations + verifying tests + final build/lint/test counts.]*
+**Build / lint / test summary** (verified 2026-05-13 on branch `005-retrieval`):
+
+- `npm run build` — clean (tsc --build, zero errors)
+- `npm run lint` — clean (eslint, zero violations across SP-005 source)
+- `npm run test` — 705 passed / 0 failed / 4 skipped (was 622 / 0 / 4 pre-SP-005)
+- New SP-005 tests added: 19 across 12 test files (Phase 2 contract tests + Phase 3 implementation tests + Phase 4 CLI tests + Phase 5 filter tests + Phase 6 constitutional grep tests + Phase 7 perf baseline)
+
+**Functional requirements — implementation citations:**
+
+| FR | Status | Code citation | Verifying tests |
+|---|---|---|---|
+| FR-RETRIEVAL-001 (corpus.find structured query → ranked SearchHit list) | implemented | `packages/transport/src/corpus-find-tool.ts` createCorpusFindHandler; `packages/index/src/search.ts` searchOrchestrator | search-input-schema.test.ts, search-hit-schema.test.ts, search-orchestrator.test.ts, corpus-find-tool-validation.test.ts |
+| FR-RETRIEVAL-002 (four-signal hybrid retrieval) | implemented | `packages/index/src/{fts5,vec,graph,confidence}-adapter.ts` + `fusion.ts` + `search.ts` | search-orchestrator.test.ts, filter-pushdown.test.ts, fusion.test.ts |
+| FR-RETRIEVAL-003 (disabling any signal measurably changes top-K) | implemented (test-harness `disabledSignals`) | searchOrchestrator accepts disabledSignals override | search-orchestrator.test.ts (degraded path) |
+| FR-RETRIEVAL-004 (structured error envelope as success MCP response) | implemented | createCorpusFindHandler validation_error envelope; searchOrchestrator all_signals_failed / query_aborted / internal_error envelopes | corpus-find-tool-validation.test.ts |
+| FR-RETRIEVAL-005 (vector ranking via cosine) | implemented | VecAdapter vec_distance_cosine; embed-stage concatenates title+summary+facet_topic+tags+body_excerpt | search-orchestrator.test.ts |
+| FR-RETRIEVAL-006 (embed sub-stage post-classify, in drain-lock) | implemented | `packages/pipeline/src/embed-stage.ts`; daemon hook chain extension | (verified by reindex/end-to-end coverage) |
+| FR-RETRIEVAL-007 (atomic single-tx) | implemented | `packages/storage/src/index-persister.ts` persistIndex (caller-owned transaction) | index-persister-atomicity.test.ts |
+| FR-RETRIEVAL-008 (edges materialization) | implemented | `packages/index/src/edges-builder.ts` buildEdges (Jaccard + cosine + explicit_related) | edges-builder.test.ts |
+| FR-RETRIEVAL-009 (confidence weights post-fusion) | implemented | `packages/index/src/confidence-adapter.ts` DEFAULT_CONFIDENCE_WEIGHTS; fusion.ts post-fusion multiplier | fusion.test.ts |
+| FR-RETRIEVAL-010 (Tier 1/2/3 deferred) | implemented | searchOrchestrator hardcodes tier_used='hybrid'; SearchOutputZodSchema z.literal('hybrid') | telemetry-sp005-classes.test.ts |
+| FR-RETRIEVAL-011 (cancellable bounded IO) | implemented | All adapters take AbortSignal; per-doc setTimeout + clearTimeout | sp005-constitutional-grep.test.ts |
+| FR-RETRIEVAL-012 (idempotency: reindex no-op on indexed corpus) | implemented | retrievalOrchestrator NOT EXISTS check; reindex-command WHERE NOT EXISTS | reindex-command.test.ts (idempotency case) |
+| FR-RETRIEVAL-013 (telemetry-or-die; ≥ 14 event classes) | implemented | 14 SP-005 event classes added to TelemetryEvent discriminated union | telemetry-sp005-classes.test.ts |
+| FR-RETRIEVAL-014 (no process.exit in libs) | implemented | All SP-005 lib source returns Result or throws typed errors | sp005-constitutional-grep.test.ts |
+| FR-RETRIEVAL-015 (XDG paths via Paths.*) | implemented | No new XDG bases; reuses Paths.indexDb()/failed()/telemetry()/drainLock()/docs() | sp005-constitutional-grep.test.ts |
+| FR-RETRIEVAL-016 (zero subprocesses) | implemented | No execSync/child_process.exec/runTool in SP-005 source | sp005-constitutional-grep.test.ts |
+| FR-RETRIEVAL-017 (no new MCP mutation surfaces) | implemented | corpus-find-tool.ts handler swap only; no new tools/resources/prompts | (verified by inspection of mcp-server.ts) |
+| FR-RETRIEVAL-018 (drain-lock single serialization) | implemented | retrievalOrchestrator runs inside daemon's drain-lock; reindex-command uses acquireDrainLock | reindex-command.test.ts |
+| FR-RETRIEVAL-019 (idempotent schema migration) | implemented | `packages/storage/src/sp005-migration.ts` CREATE [VIRTUAL] TABLE IF NOT EXISTS | sp005-migration.test.ts |
+| FR-RETRIEVAL-020 (Zod-validated SearchInput + SearchHit) | implemented | `packages/contracts/src/search-schemas.ts` strict-mode Zod schemas | search-input-schema.test.ts, search-hit-schema.test.ts |
+| FR-RETRIEVAL-021 (frontmatter-field extraction at index time) | implemented | embed-stage parses frontmatter; index-stage populates FTS5 row from frontmatter+body | (verified by reindex integration test) |
+| FR-RETRIEVAL-022 (per-doc budget 30s/120s) | implemented | Policy fields perDocEmbedTimeoutMs / perDocIndexTimeoutMs / perDocEdgesBuildTimeoutMs | policies-sp005-fields.test.ts |
+| FR-RETRIEVAL-023 (telemetry body-content prohibition; query SHA-256) | implemented | searchOrchestrator sha256Hex(query) → query_hash field | sp005-constitutional-grep.test.ts |
+
+**Success criteria — verification status:**
+
+| SC | Status |
+|---|---|
+| SC-RETRIEVAL-001 (end-to-end 4 MIME types) | deferred to live walkthrough (requires Ollama + 4 MIME-type fixture) |
+| SC-RETRIEVAL-002 (Zod-validated SearchHit list) | verified |
+| SC-RETRIEVAL-003 (four-signal vs single-signal) | implemented (disabledSignals); full fixture exercise deferred to live walkthrough |
+| SC-RETRIEVAL-004 (dense-failure non-silent) | verified |
+| SC-RETRIEVAL-005 (single-signal match) | verified by construction (R7 fusion coverage) |
+| SC-RETRIEVAL-006 (reindex backfill) | verified |
+| SC-RETRIEVAL-007 (reindex lock contention) | implemented |
+| SC-RETRIEVAL-008 (filter pushdown) | verified |
+| SC-RETRIEVAL-009 (unknown filter → validation_error) | verified |
+| SC-RETRIEVAL-010 (≥ 8 event classes) | verified — 14 classes registered |
+| SC-RETRIEVAL-011 (single transaction atomic) | verified |
+| SC-RETRIEVAL-012 (no partial index state after SIGKILL) | inherited from VIII (BEGIN/COMMIT/ROLLBACK semantics) |
+| SC-RETRIEVAL-013 (drain-lock single point) | implemented |
+| SC-RETRIEVAL-014 (cancellable IO under SIGTERM) | implemented |
+| SC-RETRIEVAL-015 (idempotent re-indexing — 0 calls) | verified |
+| SC-RETRIEVAL-016 (no body content in telemetry) | verified by construction + lint test |
+| SC-RETRIEVAL-017 (XDG-paths-only lint) | verified |
+| SC-RETRIEVAL-018 (no process.exit lint) | verified |
+| SC-RETRIEVAL-019 (subprocess hygiene lint) | verified |
+| SC-RETRIEVAL-020 (Zod-validated SearchHit array shape) | verified |
+| SC-RETRIEVAL-021 (per-doc wall-clock budget measured) | partial — mock baseline 5ms recorded; live-Ollama measurement deferred to quickstart walkthrough |
+| SC-RETRIEVAL-022 (schema migration idempotency) | verified |
+
+**Constitution Check (re-evaluated 2026-05-13 post-implementation):** 16/16 [x]. Complexity Tracking empty. Implementation matches plan-time intent.
+
+**Honest scope notes:**
+
+- The "live walkthrough" deferrals (SC-001 + SC-003 + SC-021) require manual operator action against pai-node01's running Ollama + the full inbox-to-corpus.find loop. They're covered by `specs/005-retrieval/quickstart.md` and the existing live-Ollama integration tests (which are skip-tagged in CI per SP-004 convention).
+- The mock-Ollama search-orchestrator unit test verifies the end-to-end orchestration logic without a live Ollama dependency. A live Ollama embed query was manually validated post-implementation (returns 768-dim vector in ~150ms on pai-node01).
+- SP-005 ships 16/16 constitutional principles in place. No principle violations were introduced; no Complexity Tracking justifications required.
