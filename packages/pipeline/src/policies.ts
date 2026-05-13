@@ -39,6 +39,24 @@ export const PolicySchema = z.object({
   classifyRetryMaxAttempts: z.number().int().min(0).max(3),
   /** Circuit-breaker threshold for `classify.batch_halted` (Decision F). */
   consecutiveOllamaFailureBatchHaltThreshold: z.number().int().min(1),
+  // --- SP-005 fields (PREREQ-004) ---
+  // Optional with defaults so existing SP-003/SP-004 Policy literals continue
+  // to parse unchanged; PolicySchema.parse() fills in v1 SP-005 defaults
+  // (matching interactivePolicy semantics) when absent.
+  /** Per-doc embed wall-clock cap (ms). */
+  perDocEmbedTimeoutMs: z.number().int().min(1000).default(10_000),
+  /** Per-doc index-stage wall-clock cap (ms). */
+  perDocIndexTimeoutMs: z.number().int().min(500).default(5_000),
+  /** Per-doc edges-build wall-clock cap (ms). */
+  perDocEdgesBuildTimeoutMs: z.number().int().min(1000).default(15_000),
+  /** Embedding HTTP call cap (ms). */
+  embeddingHttpTimeoutMs: z.number().int().min(1000).default(10_000),
+  /** Per-retriever SQL query cap (ms). */
+  retrieverSqlTimeoutMs: z.number().int().min(500).default(5_000),
+  /** Whole corpus.find budget (ms). */
+  searchTotalTimeoutMs: z.number().int().min(1000).default(30_000),
+  /** Per-retriever top-K (Decision C). */
+  topKPerRetriever: z.number().int().min(1).max(256).default(64),
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
@@ -56,6 +74,14 @@ export const interactivePolicy: Policy = PolicySchema.parse({
   perDocClassifyTimeoutMs: 60_000,
   classifyRetryMaxAttempts: 1,
   consecutiveOllamaFailureBatchHaltThreshold: 3,
+  // SP-005 (Decision L):
+  perDocEmbedTimeoutMs: 10_000,
+  perDocIndexTimeoutMs: 5_000,
+  perDocEdgesBuildTimeoutMs: 15_000,
+  embeddingHttpTimeoutMs: 10_000,
+  retrieverSqlTimeoutMs: 5_000,
+  searchTotalTimeoutMs: 30_000,
+  topKPerRetriever: 64,
 });
 
 /**
@@ -72,4 +98,12 @@ export const batchPolicy: Policy = PolicySchema.parse({
   perDocClassifyTimeoutMs: 300_000,
   classifyRetryMaxAttempts: 1,
   consecutiveOllamaFailureBatchHaltThreshold: 3,
+  // SP-005 (Decision L):
+  perDocEmbedTimeoutMs: 30_000,
+  perDocIndexTimeoutMs: 10_000,
+  perDocEdgesBuildTimeoutMs: 60_000,
+  embeddingHttpTimeoutMs: 30_000,
+  retrieverSqlTimeoutMs: 10_000,
+  searchTotalTimeoutMs: 60_000,
+  topKPerRetriever: 64,
 });

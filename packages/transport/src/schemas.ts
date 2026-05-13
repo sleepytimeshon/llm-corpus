@@ -1,75 +1,44 @@
-// T031 — Zod schemas for the corpus.find MCP tool.
-// Source of truth: specs/001-local-only-mcp-foundation/contracts/mcp-corpus-find.md
-// Constitution V (schema-enforced output).
+// SP-005 (T055 REPLACE) — Zod schemas for the corpus.find MCP tool.
 //
-// SP-001 ships the schemas + JSON Schema derivers; the handler (T032) returns
-// empty hits per the contract. SP-005 fills in ranking semantics.
+// References:
+//   - specs/005-retrieval/spec.md FR-RETRIEVAL-001, FR-RETRIEVAL-004,
+//     FR-RETRIEVAL-017, FR-RETRIEVAL-020
+//   - specs/005-retrieval/contracts/{search-hit,error-envelope}-schema.json
+//   - Constitution Principle V (Schema-Enforced Structured Output)
+//
+// SP-001 shipped this module with a placeholder SearchHit/Output shape
+// (id-based, including matched_tier / matched_fields fields that never got
+// wired up). SP-005 REPLACES those types with the canonical
+// SearchInput / SearchHit / SearchOutput shapes from
+// @llm-corpus/contracts/search-schemas — single source of truth.
+//
+// Per PREREQ-009 / FR-RETRIEVAL-017, NO new MCP tools are added. The
+// corpus.find tool's tool name + Zod-validated input/output surface
+// remains; the FIELDS within input/output are now SP-005 verbatim per
+// the spec FR-RETRIEVAL-001 verbatim contract.
 
-import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import {
+  SearchInputZodSchema,
+  SearchOutputZodSchema,
+  SearchHitZodSchema,
+  SearchFiltersZodSchema,
+  type SearchInput,
+  type SearchOutput,
+  type SearchHit as SearchHitType_,
+  type SearchFilters,
+} from '@llm-corpus/contracts';
 
-export const SearchFilter = z.object({
-  domain: z.string().optional(),
-  type: z
-    .enum([
-      'entity',
-      'concept',
-      'tutorial',
-      'analysis',
-      'reference',
-      'synthesis',
-      'cheat-sheet',
-    ])
-    .optional(),
-  source_type: z
-    .enum([
-      'article',
-      'research-paper',
-      'manual',
-      'form',
-      'video',
-      'podcast',
-      'book',
-      'notes',
-      'transcript',
-      'reference',
-    ])
-    .optional(),
-  since: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  limit: z.number().int().min(1).max(50).default(10),
-  mode: z.enum(['hybrid', 'keyword', 'vector']).default('hybrid'),
-});
-export type SearchFilterType = z.infer<typeof SearchFilter>;
-
-export const CorpusFindInput = z.object({
-  query: z.string().min(1).max(2000),
-  filter: SearchFilter.optional(),
-});
-export type CorpusFindInputType = z.infer<typeof CorpusFindInput>;
-
-export const SearchHit = z.object({
-  id: z.string().regex(/^doc-[0-9a-f]{8}$/),
-  title: z.string(),
-  source: z.string(),
-  source_type: z.string(),
-  facet_domain: z.string(),
-  facet_type: z.string(),
-  summary: z.string(),
-  score: z.number(),
-  matched_fields: z.array(z.string()),
-  matched_tier: z.enum(['hybrid', 'keyword', 'grep_catalog', 'grep_body']),
-});
-export type SearchHitType = z.infer<typeof SearchHit>;
-
-export const CorpusFindOutput = z.object({
-  hits: z.array(SearchHit),
-  query: z.string(),
-  tier_used: z.enum(['hybrid', 'keyword', 'grep_catalog', 'grep_body']).optional(),
-});
-export type CorpusFindOutputType = z.infer<typeof CorpusFindOutput>;
+// Re-export the canonical SP-005 schemas under the SP-001-era names so the
+// mcp-server.ts tool-registration call sites remain unchanged.
+export const CorpusFindInput = SearchInputZodSchema;
+export const CorpusFindOutput = SearchOutputZodSchema;
+export const SearchHit = SearchHitZodSchema;
+export const SearchFilter = SearchFiltersZodSchema;
+export type CorpusFindInputType = SearchInput;
+export type CorpusFindOutputType = SearchOutput;
+export type SearchHitType = SearchHitType_;
+export type SearchFilterType = SearchFilters;
 
 /**
  * JSON Schema for `corpus.find` input — derived from CorpusFindInput.

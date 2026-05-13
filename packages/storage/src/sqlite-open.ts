@@ -17,8 +17,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
 import { Paths } from '@llm-corpus/contracts';
 import { runSchemaMigration } from './schema-migration.js';
+import { runSp005Migration } from './sp005-migration.js';
 
 const SQLITE_BUSY_TIMEOUT_MS = 5000;
 
@@ -58,7 +60,11 @@ export function ensureIndexInitialized(): void {
     writeDb = new Database(dbPath);
     writeDb.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
     writeDb.pragma('journal_mode = WAL');
+    // SP-005: load sqlite-vec before running the SP-005 migration so the
+    // vec0 virtual table type is recognized by the SQLite parser.
+    sqliteVec.load(writeDb);
     runSchemaMigration(writeDb);
+    runSp005Migration(writeDb);
   } catch (err) {
     if (isSqliteBusyError(err) && fs.existsSync(dbPath)) {
       // File exists and an external writer is holding it. Trust that the
@@ -102,6 +108,9 @@ export function openIndexReadOnly(): DatabaseType {
     fileMustExist: true,
   });
   db.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
+  // SP-005: load sqlite-vec on read-only connections too — the search
+  // orchestrator's vec retriever needs vec_distance_cosine available.
+  sqliteVec.load(db);
   return db;
 }
 

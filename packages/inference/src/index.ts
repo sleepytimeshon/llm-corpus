@@ -12,3 +12,5 @@ export * from './ollama-adapter.js';
 export * from './vocabulary.js';
 export * from './prompt.js';
 export * from './validate.js';
+// SP-005
+export * from './embedding-adapter.js';

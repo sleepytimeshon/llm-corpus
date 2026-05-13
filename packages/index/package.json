@@ -1,12 +1,15 @@
 {
   "name": "@llm-corpus/index",
   "version": "0.1.0",
-  "description": "Index adapter stubs (NFR-001 lint scope).",
+  "description": "SP-005 hybrid retrieval surface: BM25 + dense + graph + confidence fusion.",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@llm-corpus/contracts": "0.1.0"
+    "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/storage": "0.1.0",
+    "@llm-corpus/inference": "0.1.0",
+    "better-sqlite3": "^11.2.0"
   }
 }

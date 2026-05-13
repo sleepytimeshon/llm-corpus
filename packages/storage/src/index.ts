@@ -21,3 +21,6 @@ export * from './unique-hash-migration.js';
 // SP-004 additions
 export * from './taxonomy-terms-adapter.js';
 export * from './classify-persister.js';
+// SP-005 additions
+export * from './sp005-migration.js';
+export * from './index-persister.js';

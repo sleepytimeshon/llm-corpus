@@ -16,3 +16,8 @@ export * from './drain-orchestrator.js';
 // SP-004 additions
 export * from './classify-circuit-breaker.js';
 export * from './classify-stage.js';
+// SP-005 additions
+export * from './embed-stage.js';
+export * from './index-stage.js';
+export * from './edges-build-stage.js';
+export * from './retrieval-orchestrator.js';

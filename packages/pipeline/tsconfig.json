@@ -10,6 +10,7 @@
     { "path": "../contracts" },
     { "path": "../storage" },
     { "path": "../extract" },
-    { "path": "../inference" }
+    { "path": "../inference" },
+    { "path": "../index" }
   ]
 }

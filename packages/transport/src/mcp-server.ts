@@ -25,7 +25,12 @@ import {
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 
 import { CorpusFindInput, CorpusFindOutput } from './schemas.js';
-import { corpusFindHandler } from './corpus-find-tool.js';
+import {
+  corpusFindHandler,
+  createCorpusFindHandler,
+  type CorpusFindHandler,
+  type CorpusFindHandlerDeps,
+} from './corpus-find-tool.js';
 
 /**
  * JSON-RPC server-defined error code for "still bootstrapping".
@@ -45,6 +50,21 @@ export interface BuildMcpServerOptions {
    * and calls markReady() after the egress hook + index are open.
    */
   ready?: boolean;
+  /**
+   * SP-005: dependency-injection slot for the corpus.find handler. When
+   * provided, the server wires the real SearchOrchestrator-backed handler
+   * via createCorpusFindHandler(deps). When omitted, tests fall back to
+   * the placeholder handler that throws on invocation (mirrors the SP-001
+   * empty-stub behavior — tests that don't exercise the tool can still
+   * register).
+   */
+  corpusFindDeps?: CorpusFindHandlerDeps;
+  /**
+   * SP-005: alternative override — supply a pre-built handler directly.
+   * Mutually exclusive with corpusFindDeps; if both are supplied,
+   * corpusFindHandlerOverride wins. Tests use this to inject mocks.
+   */
+  corpusFindHandlerOverride?: CorpusFindHandler;
 }
 
 export interface BuiltMcpServer {
@@ -119,6 +139,13 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
     },
   );
 
+  // SP-005: resolve the corpus.find handler from the options.
+  const effectiveHandler: CorpusFindHandler =
+    opts.corpusFindHandlerOverride ??
+    (opts.corpusFindDeps
+      ? createCorpusFindHandler(opts.corpusFindDeps)
+      : corpusFindHandler);
+
   // Register the single tool. The McpServer high-level API uses Zod raw shapes
   // (extracted from `.shape`) for input/output validation. We pass the zod
   // shapes directly so the SDK builds JSON Schemas + per-call validators.
@@ -134,11 +161,11 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
     },
     async (rawInput, extra) => {
       // Parse input through Zod (the SDK already validates against the
-      // input shape, but we re-parse for defaults like limit + mode).
+      // input shape, but we re-parse for defaults like limit).
       const parsed = CorpusFindInput.parse(rawInput);
       const signal = extra.signal as AbortSignal | undefined;
       const effectiveSignal = signal ?? new AbortController().signal;
-      const result = await corpusFindHandler(parsed, effectiveSignal);
+      const result = await effectiveHandler(parsed, effectiveSignal);
       return {
         // SDK requires structured `content` for tool results. Return the JSON
         // payload as a single text block per contracts/mcp-corpus-find.md.
