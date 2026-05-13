@@ -24,6 +24,26 @@ Constitution XVI honesty: end-to-end SCs verify live; corner-case SCs verify via
 - **Ollama 0.5+ installed and running locally** at `http://localhost:11434` (verified via `curl http://localhost:11434/api/version`).
 - **The configured model is loaded locally** (`ollama list` shows `qwen3.5:9b` by default; switch to `gemma3:4b` via `config.toml` `[classifier].model = "gemma3:4b"` if qwen3.5 is too slow on the user's hardware).
 
+### Operator prereqs — verified at SP-004 implementation start (pai-node01, 2026-05-13)
+
+T001 baseline check executed against the user's primary machine before implementation began:
+
+```text
+$ curl -fsS http://localhost:11434/api/version
+{"version":"0.21.0"}
+
+$ curl -fsS http://localhost:11434/api/tags | jq '.models[].name'
+"qwen3.5:9b"
+"gemma3:4b"
+"qwen3:8b"
+```
+
+Verified facts (R1 mitigation per plan.md Risk Register):
+- Ollama version 0.21.0 is >> 0.5, so the structured-outputs `format` parameter is supported.
+- Primary model `qwen3.5:9b` (Q4_K_M, ~6.5 GB on disk) is locally available.
+- Fallback model `gemma3:4b` (Q4_K_M, ~3.3 GB on disk) is locally available.
+- `qwen3:8b` is also present (Decision A's secondary-fallback candidate).
+
 ---
 
 ## Live verification — autonomous classification on ingest (SC-CLASSIFY-001, SC-CLASSIFY-005)

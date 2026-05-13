@@ -395,6 +395,223 @@ export class WatcherError extends Error {
   }
 }
 
+// ============================================================================
+// SP-004 — Classifier-stage typed errors (PREREQ-003)
+// ============================================================================
+//
+// References:
+//   - specs/004-classifier/plan.md PREREQ-003
+//   - specs/004-classifier/spec.md FR-CLASSIFY-017
+//   - Constitution Principle XI (Library/CLI Boundary)
+//
+// All four domain-specific subclasses extend ClassifierError, so callers can
+// pattern-match on `instanceof ClassifierError` for the common case OR on the
+// specific class for stage-aware handling. ClassifierConfigurationError is
+// boot-time error from missing config; it does not extend ClassifierError.
+
+export type ClassifyErrorCode =
+  | 'ollama_unavailable'
+  | 'schema_invalid'
+  | 'vocabulary_violation'
+  | 'classify_aborted'
+  | 'persist_failed'
+  | 'telemetry_write_failed'
+  | 'frontmatter_rewrite_failed';
+
+/**
+ * Generic classifier-stage error. The four stage-specific subclasses below
+ * inherit so callers can pattern-match by category or by class.
+ */
+export class ClassifierError extends Error {
+  readonly code = 'CLASSIFIER_ERROR' as const;
+  override readonly name: string = 'ClassifierError';
+  readonly data: {
+    error_code?: ClassifyErrorCode;
+    message?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code?: ClassifyErrorCode;
+      message?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Classifier error${data.error_code ? ` (${data.error_code})` : ''}${
+        data.message ? `: ${data.message}` : ''
+      }`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * The Ollama HTTP endpoint at `http://localhost:11434` was unreachable
+ * (ECONNREFUSED, ENETUNREACH, etc.) or the chat request failed at the
+ * transport layer. Retriable — the user may restart Ollama and reenrich.
+ */
+export class OllamaUnavailableError extends ClassifierError {
+  override readonly name = 'OllamaUnavailableError';
+  override readonly data: {
+    errno: string;
+    message: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      errno: string;
+      message: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'ollama_unavailable',
+        retriable: data.retriable ?? true,
+        ...data,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * The Ollama response failed Zod schema validation (FR-CLASSIFY-005
+ * defense-in-depth). Retriable — the classifier retries once before this
+ * surfaces; the failure-lane sidecar's `retry_count` reports the attempt.
+ */
+export class SchemaInvalidError extends ClassifierError {
+  override readonly name = 'SchemaInvalidError';
+  override readonly data: {
+    validation_errors: readonly string[];
+    message?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      validation_errors: readonly string[];
+      message?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'schema_invalid',
+        retriable: data.retriable ?? true,
+        message: data.message,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * The classifier emitted a value (`facet_domain` or a `tags[i]`) that is
+ * neither in the established-vocabulary snapshot nor in the corresponding
+ * `*_proposed` field. FR-CLASSIFY-006 defense-in-depth — the row routes to
+ * the failure lane with `error_code='vocabulary_violation'`.
+ */
+export class VocabularyViolationError extends ClassifierError {
+  override readonly name = 'VocabularyViolationError';
+  override readonly data: {
+    offending_field: 'facet_domain' | 'facet_type' | 'tag';
+    offending_value: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      offending_field: 'facet_domain' | 'facet_type' | 'tag';
+      offending_value: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'vocabulary_violation',
+        retriable: data.retriable ?? true,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Paired SQL UPDATE + body-file rewrite transaction failed. ROLLBACK was
+ * issued, no SQL or body-file changes persisted, and the tmp body file was
+ * cleaned up. The doc row stays sentinel. Retriable on the next classify-
+ * stage attempt.
+ */
+export class ClassifyPersistError extends ClassifierError {
+  override readonly name = 'ClassifyPersistError';
+  override readonly data: {
+    error_code: ClassifyErrorCode;
+    message: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: ClassifyErrorCode;
+      message: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: data.error_code,
+        retriable: data.retriable ?? true,
+        message: data.message,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown at OllamaAdapter construction time (or at module boot) when the
+ * structured-output `format` parameter is missing, the
+ * `CLASSIFIER_OUTPUT_JSON_SCHEMA` failed to render, or the configured model
+ * is not loaded locally. Bootstrapping failure — distinct from
+ * `ClassifierError` because no doc_id context exists at construction time.
+ */
+export class ClassifierConfigurationError extends Error {
+  readonly code = 'CLASSIFIER_CONFIGURATION_ERROR' as const;
+  override readonly name = 'ClassifierConfigurationError';
+  readonly data: { key: string; reason: string };
+
+  constructor(data: { key: string; reason: string }) {
+    super(`Classifier configuration error: ${data.key} — ${data.reason}`);
+    this.data = data;
+  }
+}
+
 /**
  * Returned (as Result.err) by acquireDrainLock when another drain process
  * already holds the flock. Concurrent invocations exit 0 after emitting

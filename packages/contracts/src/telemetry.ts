@@ -346,6 +346,216 @@ export type PersistFailedEventType = z.infer<typeof PersistFailedEvent>;
 export const Sp003ErrorCodeEnum = Sp003ErrorCode;
 export type Sp003ErrorCodeType = z.infer<typeof Sp003ErrorCode>;
 
+// --- SP-004 — Classifier-stage event classes (11 additive variants) ---------
+//
+// References:
+//   - specs/004-classifier/plan.md PREREQ-002
+//   - specs/004-classifier/data-model.md §"Entity 6 — ClassifyTelemetryEvent"
+//   - specs/004-classifier/spec.md FR-CLASSIFY-010
+//   - Constitution Principle V (schema-enforced) + IX (≤ 4096 bytes)
+//     + XIII (Telemetry-or-Die)
+//
+// Shared envelope: `event`, `timestamp`, `severity`, `outcome`. Discriminator
+// is `event` (consistent with SP-001/SP-002/SP-003 union shape).
+//
+// String field bounds per data-model.md §"Entity 6" size-budget table —
+// `message` capped at 1024 chars, `offending_value` / `term` capped at 256,
+// `validation_errors` capped at 5 × 256-char strings. The worst plausible
+// payload (`classify.schema_invalid` with full payload) stays under
+// Constitution IX's 4096-byte append-atomic limit.
+
+const Sp004Severity = z.enum(['info', 'warn', 'error']);
+const Sp004Outcome = z.enum([
+  'success',
+  'rejected',
+  'deduplicated',
+  'failed',
+  'aborted',
+]);
+
+const Sp004DocId = z.string().regex(/^doc-[0-9a-f]{8}$/);
+const Sp004BoundedMessage = z.string().max(1024);
+const Sp004BoundedShortString = z.string().max(256);
+
+const Sp004ModelName = z.string().max(128);
+const Sp004FacetTypeEnum = z.enum([
+  'entity',
+  'concept',
+  'tutorial',
+  'analysis',
+  'reference',
+  'synthesis',
+  'cheat-sheet',
+]);
+const Sp004ProposedAxis = z.enum(['domain', 'tag']);
+const Sp004OffendingField = z.enum(['facet_domain', 'facet_type', 'tag']);
+const Sp004ClassifyErrorCode = z.enum([
+  'ollama_unavailable',
+  'schema_invalid',
+  'vocabulary_violation',
+  'classify_aborted',
+  'persist_failed',
+  'telemetry_write_failed',
+  'frontmatter_rewrite_failed',
+]);
+const Sp004ProposedOutcome = z.enum(['inserted', 'conflicted']);
+
+const Sp004Confidence = z
+  .object({
+    domain: z.number().min(0).max(1),
+    type: z.number().min(0).max(1),
+    tags: z.number().min(0).max(1),
+  })
+  .strict();
+
+export const ClassifyStartedEvent = z.object({
+  event: z.literal('classify.started'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  model_name: Sp004ModelName,
+  vocabulary_snapshot_id: z.string().uuid(),
+});
+export type ClassifyStartedEventType = z.infer<typeof ClassifyStartedEvent>;
+
+export const ClassifyOllamaRequestEvent = z.object({
+  event: z.literal('classify.ollama_request'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  model_name: Sp004ModelName,
+  prompt_token_estimate: z.number().int().nonnegative(),
+  schema_field_count: z.number().int().nonnegative(),
+});
+export type ClassifyOllamaRequestEventType = z.infer<
+  typeof ClassifyOllamaRequestEvent
+>;
+
+export const ClassifyOllamaResponseEvent = z.object({
+  event: z.literal('classify.ollama_response'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  response_token_count: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type ClassifyOllamaResponseEventType = z.infer<
+  typeof ClassifyOllamaResponseEvent
+>;
+
+export const ClassifySchemaInvalidEvent = z.object({
+  event: z.literal('classify.schema_invalid'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  validation_errors: z.array(Sp004BoundedShortString).max(5),
+});
+export type ClassifySchemaInvalidEventType = z.infer<
+  typeof ClassifySchemaInvalidEvent
+>;
+
+export const ClassifyVocabularyViolationEvent = z.object({
+  event: z.literal('classify.vocabulary_violation'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  offending_field: Sp004OffendingField,
+  offending_value: Sp004BoundedShortString,
+  established_count: z.number().int().nonnegative(),
+});
+export type ClassifyVocabularyViolationEventType = z.infer<
+  typeof ClassifyVocabularyViolationEvent
+>;
+
+export const ClassifyTermProposedEvent = z.object({
+  event: z.literal('classify.term_proposed'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  axis: Sp004ProposedAxis,
+  term: Sp004BoundedShortString,
+  inserted_or_conflicted: Sp004ProposedOutcome,
+});
+export type ClassifyTermProposedEventType = z.infer<
+  typeof ClassifyTermProposedEvent
+>;
+
+export const ClassifyCompletedEvent = z.object({
+  event: z.literal('classify.completed'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  facet_domain: Sp004BoundedShortString,
+  facet_type: Sp004FacetTypeEnum,
+  tag_count: z.number().int().min(3).max(10),
+  confidence_summary: Sp004Confidence,
+  retry_count: z.number().int().min(0).max(1),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type ClassifyCompletedEventType = z.infer<typeof ClassifyCompletedEvent>;
+
+export const ClassifyFailedEvent = z.object({
+  event: z.literal('classify.failed'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  error_code: Sp004ClassifyErrorCode,
+  message: Sp004BoundedMessage,
+  stage: z.literal('classify'),
+});
+export type ClassifyFailedEventType = z.infer<typeof ClassifyFailedEvent>;
+
+export const ClassifyOllamaUnavailableEvent = z.object({
+  event: z.literal('classify.ollama_unavailable'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId.optional(),
+  errno: z.string().max(32),
+  message: Sp004BoundedMessage,
+});
+export type ClassifyOllamaUnavailableEventType = z.infer<
+  typeof ClassifyOllamaUnavailableEvent
+>;
+
+export const ClassifyBatchHaltedEvent = z.object({
+  event: z.literal('classify.batch_halted'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  consecutive_failures: z.number().int().nonnegative(),
+  threshold: z.number().int().positive(),
+  last_error_code: Sp004ClassifyErrorCode,
+});
+export type ClassifyBatchHaltedEventType = z.infer<
+  typeof ClassifyBatchHaltedEvent
+>;
+
+export const ClassifyFrontmatterIncompleteEvent = z.object({
+  event: z.literal('classify.frontmatter_incomplete'),
+  timestamp: ISO8601,
+  severity: Sp004Severity,
+  outcome: Sp004Outcome,
+  doc_id: Sp004DocId,
+  missing_fields: z.array(z.string().max(64)).max(5),
+});
+export type ClassifyFrontmatterIncompleteEventType = z.infer<
+  typeof ClassifyFrontmatterIncompleteEvent
+>;
+
+// Re-export SP-004 error_code enum so consumers (sidecar writer, classify
+// stage error handler) bind against the same closed set.
+export const Sp004ClassifyErrorCodeEnum = Sp004ClassifyErrorCode;
+export type Sp004ClassifyErrorCodeType = z.infer<typeof Sp004ClassifyErrorCode>;
+
 // --- Discriminated union (renamed in SP-002 — additive) ---
 
 /**
@@ -375,6 +585,18 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   IngestAbortedEvent,
   PipelineLockContentionEvent,
   PersistFailedEvent,
+  // SP-004 additions (11 classify-stage event classes):
+  ClassifyStartedEvent,
+  ClassifyOllamaRequestEvent,
+  ClassifyOllamaResponseEvent,
+  ClassifySchemaInvalidEvent,
+  ClassifyVocabularyViolationEvent,
+  ClassifyTermProposedEvent,
+  ClassifyCompletedEvent,
+  ClassifyFailedEvent,
+  ClassifyOllamaUnavailableEvent,
+  ClassifyBatchHaltedEvent,
+  ClassifyFrontmatterIncompleteEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 
