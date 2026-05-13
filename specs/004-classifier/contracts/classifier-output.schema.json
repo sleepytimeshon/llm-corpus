@@ -1,0 +1,88 @@
+{
+  "title": "ClassifierOutput",
+  "description": "Canonical JSON Schema rendered from ClassifierOutputZodSchema in packages/contracts/src/classifier-schema.ts. Bound to Ollama's `format` parameter at module-load time via zod-to-json-schema. This file is committed for auditor review; the source of truth is the Zod schema, and any divergence between this file and the rendered output is a bug.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "facet_domain",
+    "facet_type",
+    "tags",
+    "summary",
+    "confidence"
+  ],
+  "properties": {
+    "facet_domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary subject area. MUST be present in the established-vocabulary snapshot loaded at classify-stage start (FR-CLASSIFY-006). If the classifier wants to propose a new domain, it MUST emit the closest-fitting established value here AND populate facet_domain_proposed with the new candidate. Validation rejects mismatch unless facet_domain_proposed is set (FR-CLASSIFY-007)."
+    },
+    "facet_type": {
+      "type": "string",
+      "enum": [
+        "entity",
+        "concept",
+        "tutorial",
+        "analysis",
+        "reference",
+        "synthesis",
+        "cheat-sheet"
+      ],
+      "description": "Structural kind of document per SCHEMA.md v1.0 7-value enum. Constitutional taxonomy axis (FR-CLASSIFY-014) — NOT dynamic vocabulary. Hardcoded enum imported from FACET_TYPE_VALUES constant."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 3,
+      "maxItems": 10,
+      "description": "3-10 grep-able keywords. Each entry MUST be present in the established-vocabulary snapshot's tag set OR present in this same response's facet_tags_proposed array. Mixed established-and-proposed tag arrays are permitted; tags neither established nor proposed route the row to failure lane (FR-CLASSIFY-006 defense-in-depth)."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "One-sentence (15-25 words target) insight capturing the document's core. Lands in the body-file YAML frontmatter (FR-CLASSIFY-008). NEVER appears in telemetry payloads (Principle I + SC-CLASSIFY-020). Max 500 chars for size-budget compatibility."
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain", "type", "tags"],
+      "properties": {
+        "domain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Self-reported confidence on the facet_domain assignment."
+        },
+        "type": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Self-reported confidence on the facet_type assignment."
+        },
+        "tags": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Self-reported confidence on the tags assignment (aggregate across all returned tags)."
+        }
+      },
+      "description": "Confidence sub-scores in [0, 1]. NEVER persisted to disk per Principle II / FR-CLASSIFY-013. Retained in-memory for retry-decision logic and in the classify.completed telemetry event's confidence_summary field (rounded to 2 decimal places)."
+    },
+    "facet_domain_proposed": {
+      "type": "string",
+      "minLength": 1,
+      "description": "OPTIONAL. Present iff the classifier proposes a new domain not in the established-vocabulary snapshot. If present, SP-004 INSERTs (axis='domain', term=<value>, state='proposed', established_at=NULL) into taxonomy_terms via ON CONFLICT DO NOTHING (FR-CLASSIFY-007 + Decision I). The value is NEVER written to the documents.facet_domain SQL column (the proposed-term field is metadata about the proposal, not the document's official classification)."
+    },
+    "facet_tags_proposed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "OPTIONAL. Each entry is a proposed new tag. SP-004 INSERTs (axis='tag', term=<entry>, state='proposed', established_at=NULL) via ON CONFLICT DO NOTHING. Established tags go in `tags`; only never-seen candidates go in this proposed array."
+    }
+  }
+}
