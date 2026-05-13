@@ -1,13 +1,12 @@
 <!-- SPECKIT START -->
-Active feature: **004-classifier** (SP-004) — spec + plan + research + data-model + contracts + checklist + quickstart authored; ready for `/speckit-tasks`.
-Plan: [specs/004-classifier/plan.md](specs/004-classifier/plan.md)
-Spec: [specs/004-classifier/spec.md](specs/004-classifier/spec.md)
-Research: [specs/004-classifier/research.md](specs/004-classifier/research.md)
-Data model: [specs/004-classifier/data-model.md](specs/004-classifier/data-model.md)
-Quickstart: [specs/004-classifier/quickstart.md](specs/004-classifier/quickstart.md)
-Checklist: [specs/004-classifier/checklists/requirements.md](specs/004-classifier/checklists/requirements.md)
-ADRs: [model choice](specs/004-classifier/contracts/adr-classifier-model-choice.md) · [atomicity](specs/004-classifier/contracts/adr-classifier-atomicity.md)
-Prior art (merged): [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **005-retrieval** (SP-005) — hybrid retrieval (BM25 + dense + graph + confidence); spec package authored, ready for `/speckit-tasks`.
+Plan: [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md)
+Spec: [specs/005-retrieval/spec.md](specs/005-retrieval/spec.md)
+Research: [specs/005-retrieval/research.md](specs/005-retrieval/research.md)
+Data model: [specs/005-retrieval/data-model.md](specs/005-retrieval/data-model.md)
+Checklist: [specs/005-retrieval/checklists/requirements.md](specs/005-retrieval/checklists/requirements.md)
+ADRs: [embedding model](specs/005-retrieval/contracts/adr-embedding-model.md) · [RRF fusion](specs/005-retrieval/contracts/adr-rrf-fusion.md) · [edges materialization](specs/005-retrieval/contracts/adr-edges-materialization.md)
+Prior art (merged): [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
 
