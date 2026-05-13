@@ -22,13 +22,30 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fsp from 'node:fs/promises';
 
-const VALID_OUTPUT = {
+// Mutable shape — Zod-inferred ClassifierOutput.tags is `string[]` (mutable).
+// Using `as const` here would produce a readonly tuple incompatible with
+// the parameter type. Tests narrow at call sites where literal-type
+// preservation matters.
+const VALID_OUTPUT: {
+  facet_domain: string;
+  facet_type:
+    | 'tutorial'
+    | 'entity'
+    | 'concept'
+    | 'analysis'
+    | 'reference'
+    | 'synthesis'
+    | 'cheat-sheet';
+  tags: string[];
+  summary: string;
+  confidence: { domain: number; type: number; tags: number };
+} = {
   facet_domain: 'agent-systems',
   facet_type: 'tutorial',
   tags: ['memory', 'retrieval', 'tutorial'],
   summary: 'a short summary of the doc.',
   confidence: { domain: 0.9, type: 0.9, tags: 0.85 },
-} as const;
+};
 
 async function makeIsolatedCorpus(): Promise<string> {
   const root = await fsp.mkdtemp(

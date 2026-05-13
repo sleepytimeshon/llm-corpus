@@ -242,13 +242,14 @@ export async function persistClassification(
             }
           }
 
-          // Atomic rename — the LAST step before COMMIT.
-          await fsp.rename(tmpFile, fullBodyPath);
-
-          // COMMIT.
+          // COMMIT FIRST. better-sqlite3 db.exec is synchronous; if COMMIT
+          // throws (WAL write failure, disk full), we ROLLBACK before any
+          // file-system mutation. Once COMMIT returns, the SQL state is
+          // durable and the row is no longer sentinel — idempotency (FR-CLASSIFY-012)
+          // protects future drains from re-classifying it.
           db.exec('COMMIT');
         } catch (caughtInner) {
-          // Best-effort rollback if not already done.
+          // SQL not yet committed: ROLLBACK; tmp file is cleaned by withTempDir.
           try {
             db.exec('ROLLBACK');
           } catch {
@@ -256,6 +257,17 @@ export async function persistClassification(
           }
           throw caughtInner;
         }
+
+        // Atomic rename — AFTER COMMIT. Constitution VIII: SQL is the
+        // authoritative row state; if this rename throws, the SQL row is
+        // already classified and the body file's frontmatter is stale
+        // (sentinel-state). That divergence is forward-recoverable: doctor
+        // / future reenrich pass detects (SQL non-sentinel, frontmatter
+        // sentinel) and repairs. The REVERSE direction (rename succeeded,
+        // SQL rolled back) would be unrecoverable — the LLM is probabilistic,
+        // so re-classification might produce different output and leave a
+        // permanent fingerprint mismatch. Hence: COMMIT first, rename second.
+        await fsp.rename(tmpFile, fullBodyPath);
       },
       { signal },
     );

@@ -25,7 +25,7 @@ A process crash (SIGTERM, SIGKILL, power loss, panic) at any moment during the c
 
 ## Decision
 
-The classify-persister commits the SQL UPDATE + 0..N taxonomy_terms INSERTs + the body-file rename in a single SQLite transaction, with the body-file written to a tmp path OUTSIDE the transaction and the atomic rename happening at the LAST step before `COMMIT`.
+The classify-persister commits the SQL UPDATE + 0..N taxonomy_terms INSERTs in a single SQLite transaction, with the body-file written to a tmp path OUTSIDE the transaction and the atomic rename happening **immediately AFTER COMMIT**. The rename order was corrected during code review (commit 2026-05-13): COMMIT-first guarantees that the LLM-probabilistic classification output is recorded durably before the (irreversible) body-file rename. The reverse ordering (rename-then-COMMIT) would create an unrecoverable divergence on COMMIT failure because the LLM is probabilistic — re-classification on the next drain may produce a different fingerprint than what the (already-renamed) body file shows.
 
 **Step-by-step**:
 
@@ -37,21 +37,25 @@ The classify-persister commits the SQL UPDATE + 0..N taxonomy_terms INSERTs + th
 
 4. **For each proposed term** in `facet_domain_proposed` / `facet_tags_proposed`: `INSERT INTO taxonomy_terms (axis, term, state, established_at) VALUES (?, ?, 'proposed', NULL) ON CONFLICT(axis, term) DO NOTHING`. Conflict-no-ops are not errors (per Decision I — idempotent).
 
-5. **Atomic-rename** the tmp body file from `Paths.cache()` to the canonical path `Paths.docs() + '/' + row.body_path` via `fs.rename` (atomic on POSIX; the source and destination filesystems are guaranteed to be the same XDG subtree per Principle XIV). The rename is the LAST step before COMMIT.
+5. **`COMMIT`** the SQL transaction. better-sqlite3's `db.exec('COMMIT')` is synchronous; failure here triggers ROLLBACK before any irreversible file-system mutation.
 
-6. **`COMMIT`**.
+6. **Atomic-rename** the tmp body file from `Paths.cache()` to the canonical path `Paths.docs() + '/' + row.body_path` via `fs.rename` (atomic on POSIX; the source and destination filesystems are guaranteed to be the same XDG subtree per Principle XIV). The rename is the LAST step, AFTER COMMIT.
 
-7. **On any failure between step 2 and step 6**: `ROLLBACK`, then delete the tmp body file (if not already renamed), then write the `<doc-id>.error.json` sidecar at `Paths.failed() + '/<doc-id>.error.json'` with the matching `error_code` and `retriable` flag. The sidecar write is independently atomic via `withTempDir` (a write outside the rollback scope; if it also fails, the failure surfaces to the caller as `Result.err`).
+7. **On any failure between step 2 and step 5 (pre-COMMIT)**: `ROLLBACK`, then write the `<doc-id>.error.json` sidecar at `Paths.failed() + '/<doc-id>.error.json'` with the matching `error_code` and `retriable` flag. The tmp body file is cleaned by `withTempDir`. The sidecar write is independently atomic via `withTempDir` (a write outside the rollback scope; if it also fails, the failure surfaces to the caller as `Result.err`).
+
+8. **On failure of step 6 (rename, post-COMMIT)**: SQL row is durably classified; body file remains stale at SP-003-sentinel frontmatter. This is a FORWARD-recoverable divergence — `corpus doctor` (or a future reenrich pass) detects (SQL non-sentinel + frontmatter sentinel) and re-renders the frontmatter from SQL truth. The reverse direction (rename succeeded, COMMIT failed) is unrecoverable because the LLM is probabilistic and re-classification may produce a different fingerprint.
 
 ## Rationale
 
 **Why a single SQLite transaction**:
 - Multi-row SQL writes (the documents UPDATE + 0..N taxonomy_terms INSERTs) MUST commit together or not at all (Principle VIII transactional index). A partial commit (e.g., taxonomy_terms INSERT succeeds, documents UPDATE fails) leaves the system in a state where a proposed term exists for a still-sentinel document — observably inconsistent.
 
-**Why the rename happens INSIDE the transaction (before COMMIT, after the SQL writes)**:
-- If the rename succeeds AFTER COMMIT: a process crash between COMMIT and rename leaves the SQL row classified but the body file at the SP-003-sentinel frontmatter state. The agent reads `corpus://docs/{id}` and gets stale frontmatter while the SQL row claims the document is classified. SC-CLASSIFY-005 broken.
-- If the rename succeeds BEFORE COMMIT and the SQL COMMIT then fails: the body file is at the new state (classifier frontmatter), but the SQL row is still sentinel. On next classify-stage run, the row is still in the `WHERE facet_type='unclassified'` set; classify re-runs; the new classifier output may differ from the previous run (if the vocabulary has evolved); the body file is overwritten with the new output. No information loss (the previous body-file frontmatter was overwritten without ever being committed to the SQL side); idempotent recovery.
-- The rename-just-before-COMMIT pattern means: SQL COMMIT succeeded → body file is at the new state (the rename happened before COMMIT). The narrow window is rename-success + COMMIT-failure, which leaves the body file overwritten and the SQL row sentinel — recoverable on next run.
+**Why the rename happens AFTER the SQL COMMIT (corrected during code review):**
+- The body-file rename is **irreversible**: POSIX `fs.rename` cannot be undone. Once the canonical-path body file is the new (classifier-rewritten) content, no rollback restores the SP-003-sentinel state.
+- The SQL COMMIT is **reversible up to the moment it completes**: SQLite WAL mode's `BEGIN IMMEDIATE` + `ROLLBACK` is fully atomic.
+- The LLM classifier output is **probabilistic**: re-running classification on the same row may produce different output (different prompt vocabulary snapshot, different model sampling, etc.). The rename-then-COMMIT ordering creates a permanent fingerprint mismatch on COMMIT failure: the body file shows attempt-N's output but SQL says sentinel; next drain runs attempt-(N+1) which writes a different fingerprint, with no audit trail of attempt-N's content.
+- The COMMIT-then-rename ordering inverts the failure mode: if COMMIT succeeds and rename then fails, SQL is authoritatively classified and body file is stale; `corpus doctor` re-derives frontmatter from SQL truth, producing a deterministic recovery.
+- The narrow window between SQL COMMIT returning and `fs.rename` invocation is the unavoidable divergence surface; `corpus doctor` (or any future reenrich pass) closes it by treating SQL as the source of truth.
 
 **Why the body-file content is written OUTSIDE the transaction**:
 - SQLite transactions can hold WAL locks. Writing a body file (potentially many KB) while inside a transaction would extend the writer-lock window unnecessarily, harming SP-002 reader concurrency. The tmp-write happens outside; only the atomic rename happens inside (and that rename is a single inode-level operation).

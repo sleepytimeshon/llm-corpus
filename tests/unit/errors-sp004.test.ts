@@ -100,9 +100,7 @@ describe('PREREQ-003 — SP-004 typed errors (contract)', () => {
   });
 
   it('all six SP-004 errors carry distinct `name` values', async () => {
-    const errors = (await import(
-      '../../packages/contracts/src/errors.js'
-    )) as Record<string, new (data: object) => Error>;
+    const errors = await import('../../packages/contracts/src/errors.js');
     const instances = [
       new errors.ClassifierError({ message: 'm' }),
       new errors.OllamaUnavailableError({ errno: 'E', message: 'm' }),
@@ -122,9 +120,7 @@ describe('PREREQ-003 — SP-004 typed errors (contract)', () => {
   });
 
   it('errors do NOT invoke process.exit (Constitution XI library boundary)', async () => {
-    const errors = (await import(
-      '../../packages/contracts/src/errors.js'
-    )) as Record<string, new (data: object) => Error>;
+    const errors = await import('../../packages/contracts/src/errors.js');
     const _ = [
       new errors.ClassifierError({ message: 'm' }),
       new errors.OllamaUnavailableError({ errno: 'E', message: 'm' }),
