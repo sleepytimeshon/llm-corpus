@@ -11,6 +11,7 @@
     "@llm-corpus/storage": "0.1.0",
     "@llm-corpus/extract": "0.1.0",
     "@llm-corpus/inference": "0.1.0",
+    "@llm-corpus/index": "0.1.0",
     "better-sqlite3": "^11.2.0",
     "chokidar": "^3.6.0",
     "file-type": "^19.0.0",

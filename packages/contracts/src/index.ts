@@ -21,3 +21,6 @@ export * from './with-temp-dir.js';
 
 // SP-004 additions
 export * from './classifier-schema.js';
+
+// SP-005 additions
+export * from './search-schemas.js';

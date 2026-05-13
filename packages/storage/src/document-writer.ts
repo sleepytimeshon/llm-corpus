@@ -16,6 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
 import {
   Paths,
   PersistError,
@@ -27,13 +28,29 @@ import {
   runSchemaMigration,
   DOCUMENTS_COLUMN_LIST,
 } from './schema-migration.js';
+import { runSp005Migration } from './sp005-migration.js';
 
 const SQLITE_BUSY_TIMEOUT_MS = 5000;
 
 /**
+ * Load the sqlite-vec extension against a better-sqlite3 connection. Per
+ * SP-005 Decision B + ADR-embedding-model: namespace import, NOT default
+ * import. Idempotent — calling twice on the same connection is harmless
+ * (the second load is a no-op).
+ */
+export function loadSqliteVec(db: DatabaseType): void {
+  sqliteVec.load(db);
+}
+
+/**
  * Open the canonical index DB in read-write mode with WAL + busy_timeout.
- * Used exclusively by the SP-003 persister (and any future write-side
- * adapter). The read-only adapters MUST continue to use openIndexReadOnly.
+ * Used by the SP-003 persister, SP-004 classify-persister, and the SP-005
+ * retrieval orchestrator. The read-only adapters MUST continue to use
+ * openIndexReadOnly.
+ *
+ * SP-005: loads the sqlite-vec extension at connection-open time so the
+ * vec0 virtual table type is available for the migration and subsequent
+ * queries (Decision B).
  */
 export function openIndexReadWrite(): DatabaseType {
   const dbPath = Paths.indexDb();
@@ -44,8 +61,12 @@ export function openIndexReadWrite(): DatabaseType {
   const db = new Database(dbPath);
   db.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
   db.pragma('journal_mode = WAL');
-  // Ensure schema is present (idempotent).
+  // SP-005: load sqlite-vec BEFORE migration (vec0 virtual table type
+  // is only available after extension load).
+  loadSqliteVec(db);
+  // Ensure schema is present (idempotent). SP-002 baseline + SP-005 tables.
   runSchemaMigration(db);
+  runSp005Migration(db);
   return db;
 }
 

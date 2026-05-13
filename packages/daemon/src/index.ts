@@ -34,10 +34,12 @@ import {
   classifyStage,
   ClassifyCircuitBreaker,
   acquireDrainLock,
+  retrievalOrchestrator,
 } from '@llm-corpus/pipeline';
 import {
   loadEstablishedVocabulary,
   OllamaAdapter,
+  EmbeddingAdapter,
 } from '@llm-corpus/inference';
 import { openIndexReadWrite } from '@llm-corpus/storage';
 import { CLASSIFIER_OUTPUT_JSON_SCHEMA } from '@llm-corpus/contracts';
@@ -63,6 +65,14 @@ export interface DaemonOptions {
   classifierModel?: string;
   /** Optional: Ollama base URL for classifier. Default localhost:11434. */
   classifierBaseUrl?: string;
+  /** Optional: disable the SP-005 retrieval hook (tests / pre-Ollama setups). */
+  retrievalEnabled?: boolean;
+  /** Optional: embedding model. Default nomic-embed-text. */
+  embeddingModel?: string;
+  /** Optional: embedding endpoint. Default http://localhost:11434/api/embeddings. */
+  embeddingEndpoint?: string;
+  /** Optional: expected embedding dimension. Default 768. */
+  embeddingExpectedDim?: number;
 }
 
 const SHUTDOWN_GRACE_MS = 2000;
@@ -139,6 +149,26 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
     return ollamaAdapter;
   };
 
+  // SP-005 retrieval-stage adapter (embedding). Same lazy-construction
+  // pattern as the classifier adapter; failure routes the doc to the
+  // failure lane without crashing the daemon.
+  const retrievalEnabled = options.retrievalEnabled ?? true;
+  const embeddingModel = options.embeddingModel ?? 'nomic-embed-text';
+  const embeddingEndpoint =
+    options.embeddingEndpoint ?? 'http://localhost:11434/api/embeddings';
+  const embeddingExpectedDim = options.embeddingExpectedDim ?? 768;
+  let embeddingAdapter: EmbeddingAdapter | null = null;
+  const getEmbeddingAdapter = (): EmbeddingAdapter => {
+    if (!embeddingAdapter) {
+      embeddingAdapter = new EmbeddingAdapter({
+        model: embeddingModel,
+        endpoint: embeddingEndpoint,
+        expectedDim: embeddingExpectedDim,
+      });
+    }
+    return embeddingAdapter;
+  };
+
   // SP-004 — post-drain classify pass. Acquires the drain-lock
   // independently from the SP-003 drain (which releases on completion);
   // the lock is the single serialization point across SP-003 + SP-004.
@@ -198,6 +228,29 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
           if (stageResult.ok && stageResult.value.halt) {
             // Circuit-breaker tripped — abandon the rest of this pass.
             break;
+          }
+          // SP-005 — post-classify retrieval hook chain. Run only on
+          // successful classify (skip failed rows; they're sidecar'd
+          // already). Best-effort: a retrieval failure leaves the row
+          // classified-but-unindexed for the next `corpus reindex` pass.
+          if (
+            retrievalEnabled &&
+            stageResult.ok &&
+            stageResult.value.outcome === 'classified'
+          ) {
+            try {
+              await retrievalOrchestrator({
+                docId: row.id,
+                db,
+                embeddingAdapter: getEmbeddingAdapter(),
+                policy: batchPolicy,
+                signal,
+              });
+            } catch (caught) {
+              process.stderr.write(
+                `daemon: retrieval orchestrator error for ${row.id}: ${(caught as Error).message}\n`,
+              );
+            }
           }
         }
       } finally {

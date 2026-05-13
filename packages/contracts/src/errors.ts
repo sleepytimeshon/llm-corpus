@@ -639,3 +639,301 @@ export class LockContentionError extends Error {
     this.data = data;
   }
 }
+
+// ============================================================================
+// SP-005 — Retrieval-stage typed errors (PREREQ-003)
+// ============================================================================
+//
+// References:
+//   - specs/005-retrieval/plan.md PREREQ-003
+//   - specs/005-retrieval/spec.md FR-RETRIEVAL-014
+//   - Constitution Principle XI (Library/CLI Boundary)
+//
+// 9 typed errors — RetrievalError base + 8 subclasses. None invoke
+// process.exit; all are throwable / Result.err-wrappable.
+
+export type RetrievalErrorCode =
+  | 'embedding_unavailable'
+  | 'embedding_dimension_mismatch'
+  | 'embedding_validation_failed'
+  | 'embed_aborted'
+  | 'index_unavailable'
+  | 'edges_build_timeout'
+  | 'invalid_explicit_related_target'
+  | 'edges_aborted'
+  | 'persist_failed'
+  | 'validation_error'
+  | 'query_aborted'
+  | 'all_signals_failed'
+  | 'internal_error'
+  | 'fusion_failed';
+
+/**
+ * Base class for the SP-005 retrieval-stage typed errors. Specific subclasses
+ * inherit so callers can pattern-match on `instanceof RetrievalError` or on
+ * the specific subclass.
+ */
+export class RetrievalError extends Error {
+  readonly code = 'RETRIEVAL_ERROR' as const;
+  override readonly name: string = 'RetrievalError';
+  readonly data: {
+    error_code?: RetrievalErrorCode;
+    message?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code?: RetrievalErrorCode;
+      message?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Retrieval error${data.error_code ? ` (${data.error_code})` : ''}${
+        data.message ? `: ${data.message}` : ''
+      }`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** Ollama embedding endpoint unreachable / non-2xx. Retriable. */
+export class EmbeddingUnavailableError extends RetrievalError {
+  override readonly name = 'EmbeddingUnavailableError';
+  override readonly data: {
+    errno: string;
+    message: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      errno: string;
+      message: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'embedding_unavailable',
+        retriable: data.retriable ?? true,
+        ...data,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/** Ollama embedding length != configured expected dimension. */
+export class EmbeddingDimensionMismatchError extends RetrievalError {
+  override readonly name = 'EmbeddingDimensionMismatchError';
+  override readonly data: {
+    expected: number;
+    got: number;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    expected: number;
+    got: number;
+    message?: string;
+    [key: string]: unknown;
+  }) {
+    super({
+      error_code: 'embedding_dimension_mismatch',
+      retriable: false,
+      message:
+        data.message ??
+        `Embedding dimension mismatch: expected=${data.expected}, got=${data.got}`,
+      ...data,
+    });
+    this.data = data;
+  }
+}
+
+/** Ollama embedding contained non-finite entries. */
+export class EmbeddingValidationError extends RetrievalError {
+  override readonly name = 'EmbeddingValidationError';
+  override readonly data: {
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: { message: string; [key: string]: unknown }) {
+    super({
+      error_code: 'embedding_validation_failed',
+      retriable: false,
+      ...data,
+    });
+    this.data = data;
+  }
+}
+
+/** SQLite read failed (FTS5 / vec / edges / DB file). */
+export class IndexUnavailableError extends RetrievalError {
+  override readonly name = 'IndexUnavailableError';
+  override readonly data: {
+    signal_kind: 'bm25' | 'dense' | 'graph' | 'confidence';
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      signal_kind: 'bm25' | 'dense' | 'graph' | 'confidence';
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'index_unavailable',
+        retriable: true,
+        ...data,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/** Edges-build per-doc timeout fired. */
+export class EdgesBuildTimeoutError extends RetrievalError {
+  override readonly name = 'EdgesBuildTimeoutError';
+  override readonly data: {
+    doc_id: string;
+    timeout_ms: number;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    doc_id: string;
+    timeout_ms: number;
+    message?: string;
+    [key: string]: unknown;
+  }) {
+    super({
+      error_code: 'edges_build_timeout',
+      retriable: true,
+      message:
+        data.message ??
+        `Edges-build timeout for ${data.doc_id} after ${data.timeout_ms}ms`,
+      ...data,
+    });
+    this.data = data;
+  }
+}
+
+/** Caller's AbortSignal fired before search response was ready. */
+export class SearchAbortedError extends RetrievalError {
+  override readonly name = 'SearchAbortedError';
+  override readonly data: {
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: { message?: string; [key: string]: unknown } = {}) {
+    super({
+      error_code: 'query_aborted',
+      retriable: true,
+      message: data.message ?? 'search aborted by caller signal',
+      ...data,
+    });
+    this.data = data;
+  }
+}
+
+/** Input validation failed against SearchInputZodSchema. */
+export class SearchValidationError extends RetrievalError {
+  override readonly name = 'SearchValidationError';
+  override readonly data: {
+    issues: readonly string[];
+    message?: string;
+    hint?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    issues: readonly string[];
+    message?: string;
+    hint?: string;
+    [key: string]: unknown;
+  }) {
+    super({
+      error_code: 'validation_error',
+      retriable: true,
+      message: data.message ?? `validation failed: ${data.issues.join('; ')}`,
+      ...data,
+    });
+    this.data = data;
+  }
+}
+
+/** RRF fusion or output validation produced an internal-error envelope. */
+export class FusionError extends RetrievalError {
+  override readonly name = 'FusionError';
+  override readonly data: {
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: { message: string; [key: string]: unknown },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'fusion_failed',
+        retriable: false,
+        ...data,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}
+
+/** Atomic FTS5 + vec + edges INSERT transaction failed. */
+export class IndexPersistError extends RetrievalError {
+  override readonly name = 'IndexPersistError';
+  override readonly data: {
+    doc_id: string;
+    stage: 'fts5' | 'vec' | 'edges';
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      doc_id: string;
+      stage: 'fts5' | 'vec' | 'edges';
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      {
+        error_code: 'persist_failed',
+        retriable: true,
+        ...data,
+      },
+      cause,
+    );
+    this.data = data;
+  }
+}

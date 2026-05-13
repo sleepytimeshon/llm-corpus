@@ -1,0 +1,36 @@
+{
+  "$comment": "SP-005 SearchErrorEnvelope canonical JSON Schema. Source of truth is SearchErrorEnvelopeZodSchema in packages/contracts/src/search-schemas.ts. Per FR-004, this envelope is returned as a SUCCESSFUL MCP tool response (wrapped in the standard tool-response shape with hits=[]), NOT as a transport-level JSON-RPC error. The wrapper shape is { hits: [], query: <echo>, result_count: 0, tier_used: 'hybrid', signals_used: [], error: SearchErrorEnvelope }.",
+  "title": "SearchErrorEnvelope",
+  "description": "Structured error response from corpus.find on every non-success outcome. Returned as a successful MCP tool response wrapped in the standard tool-response shape (NOT as a transport error). The agent (consuming client) parses the response and branches on `if (response.error) { ... } else { /* SearchHits */ }`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error_code",
+    "message",
+    "hint"
+  ],
+  "properties": {
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "validation_error",
+        "embedding_unavailable",
+        "index_unavailable",
+        "query_aborted",
+        "all_signals_failed",
+        "internal_error"
+      ],
+      "description": "Closed-vocabulary error code. Semantics: `validation_error` — input failed Zod parse (malformed shape, unknown filter key, query > 2048 chars, limit out of range). `embedding_unavailable` — Ollama embedding endpoint unreachable AND every other retriever also failed; degraded responses (≥ 1 signal succeeded) do NOT return this envelope (they return a SearchHit list with `degraded_signals` annotation). `index_unavailable` — SQLite file unreadable / corrupted / not initialized. `query_aborted` — caller's AbortSignal fired before response was ready (caller cancelled or per-call timeout). `all_signals_failed` — every retriever errored (extremely rare structural failure). `internal_error` — uncaught exception in fusion or schema validation; programming bug."
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Human-readable error description. Bounded to 1024 chars for telemetry size budget compatibility. Should be specific enough for the agent / user to diagnose, vague enough not to leak internal state."
+    },
+    "hint": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Agent-self-service recovery hint. Bounded to 1024 chars. Example hints: for `validation_error` with unknown filter key — 'Invalid filter key X; valid keys are facet_domain, facet_type, tags, since, until, source_type'. For `embedding_unavailable` — 'Embedding model not loaded; run `ollama pull nomic-embed-text` and retry'. For `query_aborted` — 'Query timed out; consider tightening filters or retrying with a shorter query'. The hint MUST NOT expose stack traces, file paths outside Paths.*, or internal-only error codes."
+    }
+  }
+}

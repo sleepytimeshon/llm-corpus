@@ -1,13 +1,12 @@
 <!-- SPECKIT START -->
-Active feature: **004-classifier** (SP-004) — spec + plan + research + data-model + contracts + checklist + quickstart authored; ready for `/speckit-tasks`.
-Plan: [specs/004-classifier/plan.md](specs/004-classifier/plan.md)
-Spec: [specs/004-classifier/spec.md](specs/004-classifier/spec.md)
-Research: [specs/004-classifier/research.md](specs/004-classifier/research.md)
-Data model: [specs/004-classifier/data-model.md](specs/004-classifier/data-model.md)
-Quickstart: [specs/004-classifier/quickstart.md](specs/004-classifier/quickstart.md)
-Checklist: [specs/004-classifier/checklists/requirements.md](specs/004-classifier/checklists/requirements.md)
-ADRs: [model choice](specs/004-classifier/contracts/adr-classifier-model-choice.md) · [atomicity](specs/004-classifier/contracts/adr-classifier-atomicity.md)
-Prior art (merged): [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **005-retrieval** (SP-005) — hybrid retrieval (BM25 + dense + graph + confidence); spec package authored, ready for `/speckit-tasks`.
+Plan: [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md)
+Spec: [specs/005-retrieval/spec.md](specs/005-retrieval/spec.md)
+Research: [specs/005-retrieval/research.md](specs/005-retrieval/research.md)
+Data model: [specs/005-retrieval/data-model.md](specs/005-retrieval/data-model.md)
+Checklist: [specs/005-retrieval/checklists/requirements.md](specs/005-retrieval/checklists/requirements.md)
+ADRs: [embedding model](specs/005-retrieval/contracts/adr-embedding-model.md) · [RRF fusion](specs/005-retrieval/contracts/adr-rrf-fusion.md) · [edges materialization](specs/005-retrieval/contracts/adr-edges-materialization.md)
+Prior art (merged): [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
 
@@ -50,6 +49,37 @@ The classify-persister commits the SQL UPDATE + 0..N taxonomy_terms INSERTs + bo
 **Per-document budget** (Constitution XVI honesty — empirical, not target):
 
 The SP-004 per-document classifier wall-clock budget is set to 60s (interactive policy) / 300s (batch policy) per Decision D. Empirical measurement against the user's pai-node01 with qwen3.5:9b on CPU is exercised end-to-end via `tests/integration/end-to-end-classify.test.ts` (mock-Ollama-driven for repeatable CI) + the live operator walkthrough in `specs/004-classifier/quickstart.md`. If qwen3.5:9b exceeds the budget on degenerate inputs, the fallback to `gemma3:4b` (Decision A) is a one-line config change in `config.toml [classifier].model`.
+
+## SP-005 surface (hybrid retrieval — BM25 + dense + graph + confidence)
+
+The SP-003 daemon's post-classify hook chain now extends with `retrievalOrchestrator` (`packages/pipeline/src/retrieval-orchestrator.ts`): after each successful classify, the daemon runs `embed-stage → edges-build-stage → BEGIN IMMEDIATE → index-stage + persistIndex → COMMIT` inside the same `Paths.drainLock()` window. The corpus.find MCP tool's handler (`packages/transport/src/corpus-find-tool.ts`) now delegates to `searchOrchestrator` (`packages/index/src/search.ts`) — the four-signal hybrid retriever (BM25 over FTS5 + dense cosine over sqlite-vec + bidirectional graph traversal over edges + confidence weighting). Zero new MCP mutation surfaces.
+
+**Trigger surfaces** (FR-RETRIEVAL-017 — no new MCP surfaces):
+
+- **Daemon post-classify hook** — `packages/daemon/src/index.ts` invokes `retrievalOrchestrator` after each successful `classifyStage` under `batchPolicy`. Disable via `retrievalEnabled: false` in `DaemonOptions` for tests / pre-Ollama setups.
+- **CLI `corpus reindex`** — `packages/cli/src/reindex-command.ts` backfills `documents_fts` + `documents_vec` + `edges` for classified-but-unindexed rows. `--dry-run` lists candidates without Ollama HTTP calls or SQL writes. Drain-lock contention emits `pipeline.lock_contention` + exits 0.
+
+**Telemetry classes** (14 SP-005 variants in `TelemetryEvent`):
+
+`embed.started` · `embed.completed` · `embed.failed` · `index.started` · `index.completed` · `index.failed` · `edges.started` · `edges.completed` · `edges.failed` · `search.started` · `search.query` · `search.completed` · `search.degraded` · `search.error`
+
+**Degraded-signals contract** (FR-RETRIEVAL-003 acceptance scenarios):
+
+If ANY retriever fails (embedding unavailable, FTS5 corrupted, graph empty, confidence config missing), the orchestrator emits `search.degraded` + continues with the remaining signals; the response carries `degraded_signals: [...]` annotation as a successful MCP tool response (NOT a transport-level error). Only when ALL FOUR retrievers fail does the response become `{error_code: 'all_signals_failed', ...}` envelope.
+
+**Atomicity contract** (FR-RETRIEVAL-007 + Constitution VIII):
+
+The retrieval-orchestrator opens a single SQLite transaction wrapping the three SP-005 INSERTs: `INSERT INTO documents_fts(...) → INSERT INTO documents_vec(...) → INSERT OR IGNORE INTO edges(...)`. All three commit together OR none commit. The embedding HTTP call runs OUTSIDE the transaction (per R6 — embedding is multi-second and cannot block the writer). If embed/index/edges fails, the doc stays classified-but-unindexed and routes to `corpus reindex` for recovery.
+
+**Confidence-weight config** (`config.toml [ranker.confidence_weights]` — defaults in `packages/index/src/confidence-adapter.ts DEFAULT_CONFIDENCE_WEIGHTS`):
+
+`research-paper=1.20, manual=1.10, form=1.10, reference=1.10, article=1.00, notes=0.95, transcript=0.90, podcast=0.90, video=0.90, book=1.05`. Mapped onto the SCHEMA.md 7-value `facet_type` enum via the data-model.md §"Entity 6 Mapping (v1)" table. Recency boost: `+0.05` if `ingest_timestamp` is within the last 90 days. Unknown facet_type values default to 1.0.
+
+**Per-document budget** (Decision L, Constitution XVI honesty):
+
+Interactive policy: 10s embed / 5s index / 15s edges-build / 10s HTTP / 5s per-retriever SQL / 30s whole-search / topK=64. Batch policy: 30/10/60/30/10/60/64. Empirically: live-Ollama embedding of a 500-word excerpt completes sub-second on pai-node01; index + edges-build are sub-100ms for N ≤ 10k corpora.
+
+**Tier 1/2/3 deferred** (FR-RETRIEVAL-010): SP-005's `tier_used` is hardcoded `'hybrid'`. Tier 1 (BM25-only when sub-20ms target), Tier 2 (grep-CATALOG when SQLite fails), Tier 3 (fs-grep when everything fails) — SP-006 scope.
 
 # Working in this repo
 

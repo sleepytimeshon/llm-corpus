@@ -23,7 +23,11 @@
   "dependencies": {
     "@llm-corpus/contracts": "0.1.0",
     "@llm-corpus/storage": "0.1.0",
+    "@llm-corpus/index": "0.1.0",
+    "@llm-corpus/inference": "0.1.0",
+    "@llm-corpus/pipeline": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^11.2.0",
     "undici": "^6.19.0",
     "zod": "^3.23.0",
     "zod-to-json-schema": "^3.23.0"

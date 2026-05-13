@@ -556,6 +556,252 @@ export type ClassifyFrontmatterIncompleteEventType = z.infer<
 export const Sp004ClassifyErrorCodeEnum = Sp004ClassifyErrorCode;
 export type Sp004ClassifyErrorCodeType = z.infer<typeof Sp004ClassifyErrorCode>;
 
+// --- SP-005 — Retrieval-stage event classes (14 additive variants) ----------
+//
+// References:
+//   - specs/005-retrieval/spec.md FR-RETRIEVAL-013, FR-RETRIEVAL-023
+//   - specs/005-retrieval/data-model.md §"Entity 5 — RetrievalTelemetryEvent"
+//   - Constitution Principle V (schema-enforced) + IX (≤ 4096 bytes)
+//     + XIII (Telemetry-or-Die)
+//
+// Shared envelope: `event`, `timestamp`, `severity`, `outcome`. Discriminator
+// is `event` (consistent with SP-001/SP-002/SP-003/SP-004 union shape).
+
+const Sp005Severity = z.enum(['info', 'warn', 'error']);
+const Sp005Outcome = z.enum([
+  'success',
+  'rejected',
+  'deduplicated',
+  'failed',
+  'aborted',
+]);
+const Sp005DocId = z.string().regex(/^doc-[0-9a-f]{8}$/);
+const Sp005BoundedMessage = z.string().max(1024);
+const Sp005BoundedShortString = z.string().max(256);
+const Sp005ModelName = z.string().max(128);
+const Sp005QueryHash = z.string().regex(/^[0-9a-f]{64}$/);
+const Sp005SignalName = z.enum(['bm25', 'dense', 'graph', 'confidence']);
+
+const Sp005EmbedErrorCode = z.enum([
+  'embedding_unavailable',
+  'embedding_dimension_mismatch',
+  'embedding_validation_failed',
+  'embed_aborted',
+]);
+const Sp005IndexErrorCode = z.enum([
+  'persist_failed',
+  'index_unavailable',
+  'index_aborted',
+]);
+const Sp005EdgesErrorCode = z.enum([
+  'edges_build_timeout',
+  'invalid_explicit_related_target',
+  'edges_aborted',
+  'persist_failed',
+]);
+const Sp005SearchErrorCode = z.enum([
+  'validation_error',
+  'embedding_unavailable',
+  'index_unavailable',
+  'query_aborted',
+  'all_signals_failed',
+  'internal_error',
+]);
+
+// ---- embed.* events ----
+
+export const EmbedStartedEvent = z.object({
+  event: z.literal('embed.started'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  model_name: Sp005ModelName,
+  input_token_estimate: z.number().int().nonnegative(),
+});
+export type EmbedStartedEventType = z.infer<typeof EmbedStartedEvent>;
+
+export const EmbedCompletedEvent = z.object({
+  event: z.literal('embed.completed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  model_name: Sp005ModelName,
+  dimension: z.number().int().positive(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type EmbedCompletedEventType = z.infer<typeof EmbedCompletedEvent>;
+
+export const EmbedFailedEvent = z.object({
+  event: z.literal('embed.failed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId.optional(),
+  model_name: Sp005ModelName,
+  error_code: Sp005EmbedErrorCode,
+  message: Sp005BoundedMessage,
+});
+export type EmbedFailedEventType = z.infer<typeof EmbedFailedEvent>;
+
+// ---- index.* events ----
+
+export const IndexStartedEvent = z.object({
+  event: z.literal('index.started'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  body_excerpt_word_count: z.number().int().nonnegative(),
+  frontmatter_fields_present: z.array(z.string().max(64)).max(6),
+});
+export type IndexStartedEventType = z.infer<typeof IndexStartedEvent>;
+
+export const IndexCompletedEvent = z.object({
+  event: z.literal('index.completed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  fts5_inserted: z.boolean(),
+  vec_inserted: z.boolean(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type IndexCompletedEventType = z.infer<typeof IndexCompletedEvent>;
+
+export const IndexFailedEvent = z.object({
+  event: z.literal('index.failed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  error_code: Sp005IndexErrorCode,
+  message: Sp005BoundedMessage,
+});
+export type IndexFailedEventType = z.infer<typeof IndexFailedEvent>;
+
+// ---- edges.* events ----
+
+export const EdgesStartedEvent = z.object({
+  event: z.literal('edges.started'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  candidate_pool_size: z.number().int().nonnegative(),
+});
+export type EdgesStartedEventType = z.infer<typeof EdgesStartedEvent>;
+
+export const EdgesCompletedEvent = z.object({
+  event: z.literal('edges.completed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  tag_overlap_count: z.number().int().nonnegative(),
+  summary_similarity_count: z.number().int().nonnegative(),
+  explicit_related_count: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type EdgesCompletedEventType = z.infer<typeof EdgesCompletedEvent>;
+
+export const EdgesFailedEvent = z.object({
+  event: z.literal('edges.failed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id: Sp005DocId,
+  error_code: Sp005EdgesErrorCode,
+  message: Sp005BoundedMessage,
+});
+export type EdgesFailedEventType = z.infer<typeof EdgesFailedEvent>;
+
+// ---- search.* events ----
+
+export const SearchStartedEvent = z.object({
+  event: z.literal('search.started'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  query_hash: Sp005QueryHash,
+  has_filters: z.boolean(),
+  limit: z.number().int().min(1).max(100),
+});
+export type SearchStartedEventType = z.infer<typeof SearchStartedEvent>;
+
+export const SearchQueryEvent = z.object({
+  event: z.literal('search.query'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  query_hash: Sp005QueryHash,
+  tier_used: z.literal('hybrid'),
+  result_count: z.number().int().nonnegative(),
+  signals_used: z.array(Sp005SignalName),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type SearchQueryEventType = z.infer<typeof SearchQueryEvent>;
+
+export const SearchCompletedEvent = z.object({
+  event: z.literal('search.completed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  query_hash: Sp005QueryHash,
+  result_count: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type SearchCompletedEventType = z.infer<typeof SearchCompletedEvent>;
+
+export const SearchDegradedEvent = z.object({
+  event: z.literal('search.degraded'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  query_hash: Sp005QueryHash,
+  degraded_signals: z.array(Sp005SignalName).min(1),
+  error_codes: z.array(Sp005BoundedShortString).max(4),
+});
+export type SearchDegradedEventType = z.infer<typeof SearchDegradedEvent>;
+
+export const SearchErrorEvent = z.object({
+  event: z.literal('search.error'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  query_hash: Sp005QueryHash.optional(),
+  error_code: Sp005SearchErrorCode,
+  message: Sp005BoundedMessage,
+});
+export type SearchErrorEventType = z.infer<typeof SearchErrorEvent>;
+
+// Constitution XIII (Telemetry-or-Die): snippet enrichment is a secondary
+// step after hybrid retrieval succeeds. FTS5 read failure during snippet
+// load is a partial-outcome warning (the search itself returned hits with
+// valid scores; only display text fell back to empty strings).
+export const SearchSnippetFetchFailedEvent = z.object({
+  event: z.literal('search.snippet_fetch_failed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id_count: z.number().int().nonnegative(),
+  message: Sp005BoundedMessage,
+});
+export type SearchSnippetFetchFailedEventType = z.infer<
+  typeof SearchSnippetFetchFailedEvent
+>;
+
+// Re-export SP-005 error_code enums so consumers bind against the same set.
+export const Sp005EmbedErrorCodeEnum = Sp005EmbedErrorCode;
+export type Sp005EmbedErrorCodeType = z.infer<typeof Sp005EmbedErrorCode>;
+export const Sp005IndexErrorCodeEnum = Sp005IndexErrorCode;
+export type Sp005IndexErrorCodeType = z.infer<typeof Sp005IndexErrorCode>;
+export const Sp005EdgesErrorCodeEnum = Sp005EdgesErrorCode;
+export type Sp005EdgesErrorCodeType = z.infer<typeof Sp005EdgesErrorCode>;
+export const Sp005SearchErrorCodeEnum = Sp005SearchErrorCode;
+export type Sp005SearchErrorCodeType = z.infer<typeof Sp005SearchErrorCode>;
+
 // --- Discriminated union (renamed in SP-002 — additive) ---
 
 /**
@@ -597,6 +843,22 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   ClassifyOllamaUnavailableEvent,
   ClassifyBatchHaltedEvent,
   ClassifyFrontmatterIncompleteEvent,
+  // SP-005 additions (14 retrieval-stage event classes):
+  EmbedStartedEvent,
+  EmbedCompletedEvent,
+  EmbedFailedEvent,
+  IndexStartedEvent,
+  IndexCompletedEvent,
+  IndexFailedEvent,
+  EdgesStartedEvent,
+  EdgesCompletedEvent,
+  EdgesFailedEvent,
+  SearchStartedEvent,
+  SearchQueryEvent,
+  SearchCompletedEvent,
+  SearchDegradedEvent,
+  SearchErrorEvent,
+  SearchSnippetFetchFailedEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 
