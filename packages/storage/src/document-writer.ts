@@ -114,3 +114,58 @@ export function findDocumentByHash(
     .get(hash) as { id: string } | undefined;
   return row ? row.id : null;
 }
+
+// ============================================================================
+// SP-004 (T035) — Classify-stage write-side adapter.
+//
+// Note: tasks.md describes this as extending document-adapter.ts; the
+// document-adapter.ts file is governed by the SC-010 read-only lint rule
+// (no-writes-from-resource-handlers) and only hosts the MCP-read-path
+// adapter. Per the established convention (SP-003 insertDocument lives
+// here in document-writer.ts), the SP-004 write extension also lives in
+// document-writer.ts. The functional contract from tasks.md is preserved.
+// ============================================================================
+
+export interface UpdateClassificationInput {
+  docId: string;
+  facetDomain: string;
+  tagsJson: string;
+  facetType: string;
+}
+
+export interface UpdateClassificationResult {
+  /** Rows actually changed by the UPDATE (0 if the row was already classified). */
+  affectedRows: number;
+}
+
+/**
+ * UPDATE documents SET facet_domain=?, tags_json=?, facet_type=?
+ *   WHERE id=? AND facet_type='unclassified';
+ *
+ * The `AND facet_type='unclassified'` clause is defense-in-depth idempotency
+ * per FR-CLASSIFY-012 — a concurrent classify of the same row results in
+ * `affectedRows === 0` so the caller can rollback the transaction.
+ *
+ * The caller is responsible for opening and closing the SQLite transaction;
+ * this helper does NOT BEGIN/COMMIT.
+ */
+export function updateClassification(
+  db: DatabaseType,
+  input: UpdateClassificationInput,
+): UpdateClassificationResult {
+  const stmt = db.prepare(
+    `UPDATE documents
+        SET facet_domain = ?,
+            tags_json    = ?,
+            facet_type   = ?
+      WHERE id = ?
+        AND facet_type = 'unclassified'`,
+  );
+  const info = stmt.run(
+    input.facetDomain,
+    input.tagsJson,
+    input.facetType,
+    input.docId,
+  );
+  return { affectedRows: info.changes };
+}

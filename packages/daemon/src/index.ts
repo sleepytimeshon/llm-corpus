@@ -1,7 +1,11 @@
-// SP-003 T073 — Daemon entry point.
+// SP-003 T073 — Daemon entry point. SP-004 T039 — post-persist classify hook.
 //
 // References:
 //   - specs/003-ingest-pipeline/spec.md FR-INGEST-001, FR-INGEST-010, FR-INGEST-013
+//   - specs/004-classifier/spec.md FR-CLASSIFY-001, FR-CLASSIFY-006,
+//     FR-CLASSIFY-015, FR-CLASSIFY-019
+//   - Constitution VI (One Pipeline, Two Policies)
+//   - Constitution IX (Concurrency-Safe Shared State — drain-lock reuse)
 //   - Constitution XI (Library/CLI Boundary — daemon is one of the two
 //     legitimate process.exit sites in SP-003 source)
 //
@@ -12,7 +16,10 @@
 //   4. On every detected file: enqueue for drain.
 //   5. Drain loop coordinated with watcher events (single drain at a time
 //      per drain-lock).
-//   6. On abort: stop watcher, await in-flight drain, release lock,
+//   6. After each SP-003 drain succeeds, run SP-004 classify pass — iterate
+//      sentinel rows (one at a time, FR-CLASSIFY-019) and invoke
+//      classifyStage. Vocabulary snapshot loaded once per batch (Decision E).
+//   7. On abort: stop watcher, await in-flight drain, release lock,
 //      process.exit(0) within 2s budget.
 
 import * as fs from 'node:fs';
@@ -24,8 +31,16 @@ import {
   InboxWatcher,
   drain,
   batchPolicy,
+  classifyStage,
+  ClassifyCircuitBreaker,
+  acquireDrainLock,
 } from '@llm-corpus/pipeline';
+import {
+  loadEstablishedVocabulary,
+  OllamaAdapter,
+} from '@llm-corpus/inference';
 import { openIndexReadWrite } from '@llm-corpus/storage';
+import { CLASSIFIER_OUTPUT_JSON_SCHEMA } from '@llm-corpus/contracts';
 
 // NOTE: worker-bootstrap.ts is a side-effecting module that calls
 // installEgressHook() at top level. It is preloaded into Worker threads
@@ -42,6 +57,12 @@ export interface DaemonOptions {
   noExit?: boolean;
   /** Optional: external AbortController (tests). */
   controller?: AbortController;
+  /** Optional: disable the SP-004 classify hook (tests / pre-Ollama setups). */
+  classifyEnabled?: boolean;
+  /** Optional: model name for the classifier. Default qwen3.5:9b. */
+  classifierModel?: string;
+  /** Optional: Ollama base URL for classifier. Default localhost:11434. */
+  classifierBaseUrl?: string;
 }
 
 const SHUTDOWN_GRACE_MS = 2000;
@@ -97,6 +118,96 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
   let pendingTrigger = false;
   let drainInFlight: Promise<void> | null = null;
 
+  // SP-004 classify-stage adapter. Constructed lazily on first drain so
+  // that startup doesn't fail if Ollama isn't running yet — the classify
+  // hook is best-effort per FR-CLASSIFY-011 (the row stays sentinel until
+  // the next attempt). `classifyEnabled` defaults to true; setting it to
+  // false disables the hook entirely (tests, pre-Ollama setups).
+  const classifyEnabled = options.classifyEnabled ?? true;
+  const classifierModel = options.classifierModel ?? 'qwen3.5:9b';
+  const classifierBaseUrl =
+    options.classifierBaseUrl ?? 'http://localhost:11434';
+  let ollamaAdapter: OllamaAdapter | null = null;
+  const getOllamaAdapter = (): OllamaAdapter => {
+    if (!ollamaAdapter) {
+      ollamaAdapter = new OllamaAdapter({
+        model: classifierModel,
+        schema: CLASSIFIER_OUTPUT_JSON_SCHEMA,
+        baseUrl: classifierBaseUrl,
+      });
+    }
+    return ollamaAdapter;
+  };
+
+  // SP-004 — post-drain classify pass. Acquires the drain-lock
+  // independently from the SP-003 drain (which releases on completion);
+  // the lock is the single serialization point across SP-003 + SP-004.
+  // On contention, the classify pass is skipped — the next drain trigger
+  // will retry, or `corpus reenrich` can drain the backlog manually.
+  const runClassifyPass = async (): Promise<void> => {
+    if (!classifyEnabled) return;
+    const lockResult = acquireDrainLock({ signal });
+    if (!lockResult.ok) {
+      // Lock contention — skip; the next drain trigger or `corpus reenrich`
+      // will retry. Telemetry emitted by the drain-lock itself in callers
+      // that care; the daemon-loop case is a benign skip.
+      return;
+    }
+    const lock = lockResult.value;
+    try {
+      const db = openIndexReadWrite();
+      try {
+        const vocabResult = await loadEstablishedVocabulary(db, signal);
+        if (!vocabResult.ok) {
+          process.stderr.write(
+            `daemon: vocabulary load failed: ${vocabResult.error.message}\n`,
+          );
+          return;
+        }
+        const vocab = vocabResult.value;
+        const circuitBreaker = new ClassifyCircuitBreaker();
+        const sentinelRows = db
+          .prepare(
+            `SELECT id FROM documents
+              WHERE facet_type = 'unclassified'
+                AND status = 'success'
+              ORDER BY ingest_timestamp ASC`,
+          )
+          .all() as Array<{ id: string }>;
+        for (const row of sentinelRows) {
+          if (signal.aborted) break;
+          let adapter: OllamaAdapter;
+          try {
+            adapter = getOllamaAdapter();
+          } catch (caught) {
+            process.stderr.write(
+              `daemon: classifier config error: ${(caught as Error).message}\n`,
+            );
+            return;
+          }
+          const stageResult = await classifyStage({
+            docId: row.id,
+            db,
+            ollama: adapter,
+            vocabulary: vocab,
+            policy: batchPolicy,
+            circuitBreaker,
+            modelName: classifierModel,
+            signal,
+          });
+          if (stageResult.ok && stageResult.value.halt) {
+            // Circuit-breaker tripped — abandon the rest of this pass.
+            break;
+          }
+        }
+      } finally {
+        db.close();
+      }
+    } finally {
+      lock.release();
+    }
+  };
+
   const runDrain = async (): Promise<void> => {
     if (drainInFlight) {
       pendingTrigger = true;
@@ -113,6 +224,14 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
               `daemon: drain error: ${result.error.message}\n`,
             );
           }
+          // SP-004 post-persist classify pass. Runs after each SP-003 drain
+          // success. The classify pass acquires the drain-lock independently
+          // (the SP-003 drain has already released it). FR-CLASSIFY-001.
+          await runClassifyPass().catch((caught) => {
+            process.stderr.write(
+              `daemon: classify pass error: ${(caught as Error).message}\n`,
+            );
+          });
         } while (pendingTrigger && !signal.aborted);
       } finally {
         drainInFlight = null;
