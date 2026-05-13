@@ -1,89 +1,84 @@
 # llm-corpus Session State
 
-**Last updated:** 2026-05-13 (SP-004 PR opened)
+**Last updated:** 2026-05-13 (SP-005 merged — install-ready milestone reached)
 **Authoritative:** this file. Memory pointers in ~/.claude reference here.
 
 ## Current status
 
 | Sprint | Scope | Status |
 |---|---|---|
-| SP-001 | Local-only MCP foundation | ✅ Merged (PR #?) |
+| SP-001 | Local-only MCP foundation | ✅ Merged |
 | SP-002 | 4 read-only MCP resources (manifest / taxonomy / recent / docs/{id}) | ✅ Merged (PR #3) |
 | SP-003 | Ingest pipeline — inbox watcher → validation → hash → normalize → persist | ✅ Merged 2026-05-12 (PR #11; daemon fix #12) |
-| SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | 🟡 **PR #13 open, CI running 2026-05-13** |
-| SP-005 | Embedding + ranking + retrieval (makes `corpus.find` return real SearchHits) | ⏳ Not started |
-| SP-006 | Kill-9 survival + `corpus://failures` MCP resource | ⏳ Not started |
+| SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | ✅ Merged 2026-05-13 (PR #13, commit 33f233c) |
+| SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ **Merged 2026-05-13 (PR #14, commit 7592eb9)** |
+| SP-006 | Kill-9 survival + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ⏳ Production hardening (not blocking install/use) |
 
-**Branch:** `004-classifier` pushed; PR #13 at https://github.com/sleepytimeshon/llm-corpus/pull/13
+**Branch:** `main` clean. SP-001 through SP-005 all merged.
 
-## What "install-ready and fill with knowledge" means
+## Install-ready milestone — REACHED
 
-User directive: deliver a finished product ready to install and start filling with knowledge.
+The substrate is install-ready in the sense the user directed:
 
-| Capability | Sprint that delivers it | State |
+| Capability | Sprint | State |
 |---|---|---|
-| User drops files in inbox, system ingests | SP-003 | ✅ Ready today |
-| System classifies metadata so the corpus is structured | SP-004 | 🟡 In PR review |
-| System embeds + indexes for semantic search | SP-005 | ⏳ Required for `corpus.find` to return non-empty |
-| System survives crashes / shows failure resource | SP-006 | ⏳ Production hardening |
+| User drops files in inbox, system ingests | SP-003 | ✅ Ready |
+| System classifies metadata so the corpus is structured | SP-004 | ✅ Ready |
+| System embeds + indexes for semantic search | SP-005 | ✅ **Ready** |
+| `corpus.find` MCP tool returns ranked relevant docs | SP-005 | ✅ **Ready** |
+| `corpus reindex [--dry-run]` CLI for manual backfill | SP-005 | ✅ Ready |
 
-**Minimum install-ready:** SP-004 merged + SP-005 merged. Without SP-005, `corpus.find` returns empty even on classified rows — the agent can ingest but can't search.
+The agent can now:
+1. Drop documents into `Paths.inbox()`
+2. Wait for the daemon's autonomous chain (ingest → classify → embed → index → edges-build)
+3. Call `corpus.find` via the MCP tool and receive ranked SearchHit lists with `score`, `uri`, `title`, `facet_domain`, `facet_type`, `tags`, `snippet`
 
-**Production-ready:** also SP-006 for crash recovery.
+### What you need to install (on a fresh machine)
 
-## Next-turn pickup (SP-005)
+1. Clone the repo, `npm install`
+2. Pull two Ollama models:
+   - `ollama pull qwen3.5:9b` (or `gemma3:4b` for lighter; for SP-004 classifier)
+   - `ollama pull nomic-embed-text` (for SP-005 embeddings)
+3. `npm run build`
+4. `node packages/cli/dist/index.js init`
+5. `node packages/cli/dist/index.js daemon` to start autonomous processing
+6. Drop files into `$CORPUS_HOME/data/inbox/` to begin filling with knowledge
 
-When resuming autonomously, the next sprint is SP-005 (embedding + ranking + retrieval).
+Walkthrough details: `specs/004-classifier/quickstart.md` + `specs/005-retrieval/quickstart.md`.
 
-**Per SP-003 plan.md defer list:** "Embedding/ranking to SP-005 (FR-015/FR-002/FR-003/FR-004)."
+## SP-006 — production hardening (next sprint, NOT install-blocking)
 
-Pre-resolved design pointers from prior architecture:
-- `ARCHITECTURE-FINAL.md` §10 — hybrid retrieval architecture (BM25 / sqlite-vec / FTS5 multi-tier)
-- `WHITEPAPER-FINAL.md` — semantic search section
-- `packages/inference/src/index.ts` after SP-004 — exports OllamaAdapter; SP-005 adds EmbeddingAdapter alongside
-- `packages/index/` — exists but possibly empty; SP-005 fills it with `IndexAdapter` (FTS5 + sqlite-vec composite)
-- `packages/transport/src/` — `corpus.find` tool handler currently returns empty SearchHits; SP-005 wires it through the new IndexAdapter
-- `sqlite-vec ^0.1.0` already in dependencies — no need to add
+Per SP-003 plan.md defer list and SP-005 anti-scope:
 
-SP-005 spec authoring should follow the same speckit workflow:
-1. Create branch `005-retrieval` after SP-004 merges
-2. `specs/005-retrieval/` with spec / plan / data-model / research / contracts / tasks / checklist
-3. New telemetry classes: `embed.*`, `search.*`
-4. New errors: `EmbeddingError`, `IndexLockedError` (the latter already exists per SP-002)
-5. Implementation in `packages/inference/` (EmbeddingAdapter), `packages/index/` (composite FTS5+vec adapter), `packages/transport/` (`corpus.find` handler wiring)
+- **Kill-9 cross-stage recovery** — currently if the process is killed mid-classify or mid-embed, the row may be in an inconsistent state until the next drain catches it. SP-006 adds explicit recovery semantics: on daemon startup, detect orphaned in-flight work and either resume or fail-cleanly.
+- **`corpus://failures` MCP resource** — currently failure-lane `.error.json` sidecars live on disk; SP-006 exposes them as a read-only MCP resource so agents can introspect what failed and why.
+- **Tier 1/2/3 fallthrough** — Tier 0 (hybrid) is the only tier shipped; Tier 1 (BM25-only fast path), Tier 2 (grep CATALOG.md), Tier 3 (filesystem grep over `docs/`) are not yet wired. The tier model in ARCHITECTURE-FINAL §10.6 specifies latency targets for each tier; SP-006 builds the fallthrough.
 
-## Resumption protocol
+## Resumption protocol (continued from SP-004 era)
 
-Pallas (the AI agent) drives all tactical workflow per the user's standing directive (2026-05-12+). No user involvement in:
+Pallas owns all tactical workflow per Shon's standing directive (2026-05-12+):
 - PR creation / merges / branch ceremony
-- Constitution-check failures or spec/contract violations (Pallas resolves)
+- Constitution-check failures (resolved by Pallas, never escalated)
 - Agent management / swarming / context budgeting
 
 User involvement only when:
 - 100% required (genuine blocker)
-- Final product ready to install + ingest knowledge
+- Major milestone reached (install-ready, SP-006 complete, etc.)
 
-When the user types anything that signals continuation ("what's next", "continue", "keep going", etc.) on this project, the autonomous turn picks up at SP-005 unless SP-004 PR is still pending — in which case the first task is to monitor + merge SP-004.
+When the user types continuation signal ("keep going", "continue", etc.), the next autonomous turn picks up at SP-006 hardening.
 
-## Operating principles invoked
+## Pre-resolved constraints for SP-006
 
-- `feedback-pallas-drives-tactical-workflow` — methodology, ceremony, plumbing all owned by Pallas
+- Kill-9 recovery: leverage the existing telemetry JSONL append-only log to detect in-flight work; on daemon startup, scan for `*.started` events without matching `*.completed` / `*.failed`
+- `corpus://failures` resource: read-only MCP resource per Constitution III; list `Paths.failed()/*.error.json` sidecar files; return structured error envelope per FR-004
+- Tier fallthrough: implemented in the search orchestrator; if Tier 0 (hybrid) returns fewer than `min_results` hits, fall through to Tier 1 (BM25-only on FTS5 — same table, lighter query), then Tier 2 (grep CATALOG.md), then Tier 3 (filesystem grep over `docs/`). Each tier has an aggregate latency budget; matched tier reported in hit metadata.
+
+## Operating principles invoked (carries forward from SP-004 / SP-005)
+
+- `feedback-pallas-drives-tactical-workflow` — methodology, ceremony, plumbing owned by Pallas
 - `feedback-no-stop-recommendations` — continue executing under max-effort directive
 - `feedback-pr-merges-and-ceremony-are-mine` — Pallas decides merge timing
-- `feedback-no-session-churn` — build on prior docs; SP-005 inherits from SP-004 patterns
-- `feedback-primary-sources-only` — verify subagent claims with tools; never trust summaries
-- `feedback-build-tier-sizing-rule` — split builds >2000 LOC into pre-planned N≥2 Engineer agents
-- `feedback-verify-or-retract` — claims must be tool-verified
-
-## Pre-resolved constraints for SP-005
-
-To avoid re-litigating in the next turn:
-- Embedding model: local Ollama; specific model TBD by SP-005 research (likely `nomic-embed-text` or similar small embedding model)
-- Vector store: sqlite-vec ^0.1.0 (already in dependencies)
-- Retrieval hybrid: FTS5 (lexical) + sqlite-vec (semantic) + score-combined ranking
-- `corpus.find` returns `Array<{ id: string, score: number, snippet: string, frontmatter: Frontmatter }>` per MCP-resource template signatures already defined in SP-002
-
-Do NOT in SP-005:
-- Add cloud-fallback embedding (Constitution I forbids)
-- Add evaluation harness as success criterion (Constitution XVI defers eval to v1.5+)
-- Re-tier retrieval beyond what ARCHITECTURE-FINAL §10 specifies without a separate ADR
+- `feedback-primary-sources-only` — verify subagent claims with tools
+- `feedback-verify-or-retract` — every load-bearing claim is tool-verified
+- `feedback-build-tier-sizing-rule` — split builds; SP-005 single-dispatch succeeded at ~8.6K LOC
+- `feedback-spec-contradictions-pre-build-lint` — pre-build review catches design drift (caught the SP-005 single-transaction claim against the actual two-transaction implementation)
