@@ -18,3 +18,6 @@ export * from './document-adapter.js';
 export * from './document-writer.js';
 export * from './recent-adapter.js';
 export * from './unique-hash-migration.js';
+// SP-004 additions
+export * from './taxonomy-terms-adapter.js';
+export * from './classify-persister.js';

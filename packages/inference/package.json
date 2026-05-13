@@ -1,12 +1,18 @@
 {
   "name": "@llm-corpus/inference",
   "version": "0.1.0",
-  "description": "Inference adapter stubs (NFR-001 lint scope).",
+  "description": "SP-004 classifier inference layer — OllamaAdapter + vocabulary loader + prompt renderer + defense-in-depth validator.",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@llm-corpus/contracts": "0.1.0"
+    "@llm-corpus/contracts": "0.1.0",
+    "@llm-corpus/storage": "0.1.0",
+    "better-sqlite3": "^11.2.0",
+    "undici": "^6.19.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
   }
 }

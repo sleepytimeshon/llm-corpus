@@ -9,6 +9,7 @@
   "references": [
     { "path": "../contracts" },
     { "path": "../storage" },
-    { "path": "../extract" }
+    { "path": "../extract" },
+    { "path": "../inference" }
   ]
 }

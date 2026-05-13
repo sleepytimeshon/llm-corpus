@@ -13,3 +13,6 @@ export * from './drain-lock.js';
 export * from './inbox-watcher.js';
 export * from './policies.js';
 export * from './drain-orchestrator.js';
+// SP-004 additions
+export * from './classify-circuit-breaker.js';
+export * from './classify-stage.js';

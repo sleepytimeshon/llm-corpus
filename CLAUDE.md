@@ -1,9 +1,13 @@
 <!-- SPECKIT START -->
-Active feature: **002-mcp-resources** (SP-002) — implementation complete; ready for merge review.
-Plan: [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md)
-Spec: [specs/002-mcp-resources/spec.md](specs/002-mcp-resources/spec.md)
-Tasks: [specs/002-mcp-resources/tasks.md](specs/002-mcp-resources/tasks.md)
-Prior art (merged): [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **004-classifier** (SP-004) — spec + plan + research + data-model + contracts + checklist + quickstart authored; ready for `/speckit-tasks`.
+Plan: [specs/004-classifier/plan.md](specs/004-classifier/plan.md)
+Spec: [specs/004-classifier/spec.md](specs/004-classifier/spec.md)
+Research: [specs/004-classifier/research.md](specs/004-classifier/research.md)
+Data model: [specs/004-classifier/data-model.md](specs/004-classifier/data-model.md)
+Quickstart: [specs/004-classifier/quickstart.md](specs/004-classifier/quickstart.md)
+Checklist: [specs/004-classifier/checklists/requirements.md](specs/004-classifier/checklists/requirements.md)
+ADRs: [model choice](specs/004-classifier/contracts/adr-classifier-model-choice.md) · [atomicity](specs/004-classifier/contracts/adr-classifier-atomicity.md)
+Prior art (merged): [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
 
@@ -21,6 +25,31 @@ The MCP server registers four read-only resources alongside the SP-001 `corpus.f
 Every read emits a `resource.read` telemetry event (success AND every failure path). New error envelopes: `-32002 server_initializing`, `-32010 document_not_found`, `-32011 index_locked` (retriable). The empty-baseline schema migration creates `documents` and `taxonomy_terms` SQLite tables; SP-003+ populates them.
 
 SC-010 read-only enforcement is by construction: the `no-writes-from-resource-handlers` ESLint rule scopes the four resource handlers and four storage adapters; any INSERT/UPDATE/DELETE/CREATE/DROP/ALTER in `.exec()`/`.run()` or any `fs.write*`/`fs.append*`/`fs.mkdir*` call hard-fails the build.
+
+## SP-004 surface (semantic classification)
+
+The SP-003 daemon's post-persist hook now auto-invokes the SP-004 classify-stage on each newly-persisted row. A new `corpus reenrich [--dry-run]` CLI subcommand drains the sentinel-row backlog. Both surfaces invoke the SAME `classifyStage` function (Constitution VI — one pipeline, two policies).
+
+**Trigger surfaces** (FR-CLASSIFY-016 commits to zero new MCP mutation surfaces):
+
+- **Daemon post-persist hook** (`packages/daemon/src/index.ts`) — after each SP-003 drain success, re-acquires `Paths.drainLock()` (FR-CLASSIFY-015 drain-lock reuse), iterates `WHERE facet_type='unclassified' ORDER BY ingest_timestamp ASC`, invokes classifyStage under `batchPolicy`. Disable via `classifyEnabled: false` in DaemonOptions for tests / pre-Ollama setups.
+- **CLI `corpus reenrich`** (`packages/cli/src/reenrich-command.ts`) — `corpus reenrich` (interactivePolicy + progress on stderr + summary on stdout) and `corpus reenrich --dry-run` (lists docs without Ollama calls or SQL UPDATEs). Concurrent invocation while a daemon drain holds the lock emits `pipeline.lock_contention` and exits 0.
+
+**Telemetry classes emitted by classify-stage** (per Entity 6 of `specs/004-classifier/data-model.md`, 11 SP-004 variants in the `TelemetryEvent` Zod discriminated union; ≤ 4 KB per record):
+
+`classify.started` · `classify.ollama_request` · `classify.ollama_response` · `classify.schema_invalid` · `classify.vocabulary_violation` · `classify.term_proposed` · `classify.completed` · `classify.failed` · `classify.ollama_unavailable` · `classify.batch_halted` · `classify.frontmatter_incomplete`
+
+**Proposed-term routing contract** (FR-CLASSIFY-007 + Principle XV gate, not auto-trigger):
+
+The classifier MAY emit `facet_domain_proposed: string` and/or `facet_tags_proposed: string[]` optional fields. Each entry that is NOT already in the established-vocabulary snapshot is INSERTed via `packages/storage/src/taxonomy-terms-adapter.ts insertProposedTerm(db, axis, term, signal)` — the SQL string contains a hardcoded `'proposed'` state literal; the function signature accepts no state parameter; the promoted-state INSERT is structurally impossible from any SP-004 code path (verified by `tests/integration/no-established-insert-in-sp004.test.ts`). `ON CONFLICT(axis, term) DO NOTHING` collapses duplicate proposals to a single row. `corpus://taxonomy` (SP-002 read contract) continues to surface only `state='established'` rows.
+
+**Atomicity contract** (FR-CLASSIFY-008 + Decision F + ADR-CLASSIFIER-ATOMICITY):
+
+The classify-persister commits the SQL UPDATE + 0..N taxonomy_terms INSERTs + body-file frontmatter rewrite (via `withTempDir` + atomic rename) in a single SQLite transaction (`BEGIN IMMEDIATE → UPDATE → INSERTs → rename → COMMIT`). The `AND facet_type='unclassified'` clause on the UPDATE is defense-in-depth idempotency per FR-CLASSIFY-012. On any failure: ROLLBACK + tmp body file cleanup + `<doc-id>.error.json` sidecar at `Paths.failed()`.
+
+**Per-document budget** (Constitution XVI honesty — empirical, not target):
+
+The SP-004 per-document classifier wall-clock budget is set to 60s (interactive policy) / 300s (batch policy) per Decision D. Empirical measurement against the user's pai-node01 with qwen3.5:9b on CPU is exercised end-to-end via `tests/integration/end-to-end-classify.test.ts` (mock-Ollama-driven for repeatable CI) + the live operator walkthrough in `specs/004-classifier/quickstart.md`. If qwen3.5:9b exceeds the budget on degenerate inputs, the fallback to `gemma3:4b` (Decision A) is a one-line config change in `config.toml [classifier].model`.
 
 # Working in this repo
 

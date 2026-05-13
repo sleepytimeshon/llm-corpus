@@ -18,3 +18,6 @@ export * from './resource-schemas.js';
 
 // SP-003 additions
 export * from './with-temp-dir.js';
+
+// SP-004 additions
+export * from './classifier-schema.js';
