@@ -1,12 +1,12 @@
 <!-- SPECKIT START -->
-Active feature: **005-retrieval** (SP-005) — hybrid retrieval (BM25 + dense + graph + confidence); spec package authored, ready for `/speckit-tasks`.
-Plan: [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md)
-Spec: [specs/005-retrieval/spec.md](specs/005-retrieval/spec.md)
-Research: [specs/005-retrieval/research.md](specs/005-retrieval/research.md)
-Data model: [specs/005-retrieval/data-model.md](specs/005-retrieval/data-model.md)
-Checklist: [specs/005-retrieval/checklists/requirements.md](specs/005-retrieval/checklists/requirements.md)
-ADRs: [embedding model](specs/005-retrieval/contracts/adr-embedding-model.md) · [RRF fusion](specs/005-retrieval/contracts/adr-rrf-fusion.md) · [edges materialization](specs/005-retrieval/contracts/adr-edges-materialization.md)
-Prior art (merged): [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **006-hardening** (SP-006) — production hardening: kill-9 cross-stage recovery + `corpus://failures` read-only MCP resource + Tier 1/2/3 fallthrough cascade; spec package authored, ready for `/speckit-tasks`. **FINAL substrate sprint** — substrate ships install-complete after merge.
+Plan: [specs/006-hardening/plan.md](specs/006-hardening/plan.md)
+Spec: [specs/006-hardening/spec.md](specs/006-hardening/spec.md)
+Research: [specs/006-hardening/research.md](specs/006-hardening/research.md)
+Data model: [specs/006-hardening/data-model.md](specs/006-hardening/data-model.md)
+Checklist: [specs/006-hardening/checklists/requirements.md](specs/006-hardening/checklists/requirements.md)
+ADRs: [kill-9 recovery](specs/006-hardening/contracts/adr-kill9-recovery.md) · [failures resource](specs/006-hardening/contracts/adr-failures-resource.md) · [tier fallthrough](specs/006-hardening/contracts/adr-tier-fallthrough.md)
+Prior art (merged): [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
 
@@ -79,7 +79,37 @@ The retrieval-orchestrator opens a single SQLite transaction wrapping the three 
 
 Interactive policy: 10s embed / 5s index / 15s edges-build / 10s HTTP / 5s per-retriever SQL / 30s whole-search / topK=64. Batch policy: 30/10/60/30/10/60/64. Empirically: live-Ollama embedding of a 500-word excerpt completes sub-second on pai-node01; index + edges-build are sub-100ms for N ≤ 10k corpora.
 
-**Tier 1/2/3 deferred** (FR-RETRIEVAL-010): SP-005's `tier_used` is hardcoded `'hybrid'`. Tier 1 (BM25-only when sub-20ms target), Tier 2 (grep-CATALOG when SQLite fails), Tier 3 (fs-grep when everything fails) — SP-006 scope.
+**Tier 1/2/3 deferred** (FR-RETRIEVAL-010): SP-005's `tier_used` is hardcoded `'hybrid'`. Tier 1 (BM25-only when sub-20ms target), Tier 2 (grep-CATALOG when SQLite fails), Tier 3 (fs-grep when everything fails) — SP-006 scope (now ACTIVE — see SP-006 surface below).
+
+## SP-006 surface (production hardening — kill-9 recovery + `corpus://failures` + tier 1/2/3 fallthrough)
+
+The final substrate sprint. Three orthogonal deliverables — all read-only / idempotent / drain-lock-serialized; ZERO new MCP mutation surfaces; ZERO new SQL tables; ZERO new XDG bases.
+
+**1. Kill-9 cross-stage recovery** (`packages/pipeline/src/recovery-scanner.ts` + daemon startup-hook extension): on daemon restart after SIGKILL/OOM-kill/power-loss, BEFORE accepting new ingest work the recovery scanner acquires `Paths.drainLock()`, scans `Paths.telemetry()` JSONL backwards to the most-recent `daemon.started` marker, builds a `(doc_id, stage)` orphan map, routes each orphan through the resumability matrix (Decision B), re-queues resumable orphans into existing SP-003 → SP-005 idempotent transitions, writes `<doc-id>.recovery.error.json` sidecars at `Paths.failed()` for non-resumable cases. Resumability matrix: `ingest` resumable IF inbox file present; `classify`/`embed`/`index`/`edges-build` ALL resumable (Constitution X idempotency contracts). The recovery scanner is itself idempotent (Scenario 5 — recovery-during-recovery detected via `recovery.scan_reentry` event).
+
+**2. `corpus://failures` read-only MCP resource** (`packages/storage/src/failures-resource-adapter.ts` + `packages/transport/src/failures-resource-handler.ts`): the fifth MCP resource alongside SP-002's four. Globs `Paths.failed() + '/*.error.json'` AND `Paths.failed() + '/*.recovery.error.json'` (both SP-003 verbatim + SP-006 recovery sidecars surfaced uniformly). Query params `?stage=<stage>&since=<ISO date>&limit=<int>&offset=<int>`; defaults `stage=*, since=unbounded, limit=50, offset=0` (hard cap limit=1000). Response shape `{entries: FailureEntry[], total_count, returned_count, schema_version: 1}` — Zod-validated. Per-sidecar graceful degradation on malformed JSON via `failures.sidecar_parse_failed` events. Read-only by construction via `no-writes-from-resource-handlers` ESLint rule scoped over the new handler + adapter. The `sidecar_path` field is SP-006-added so operators can `rm` after triaging.
+
+**3. Tier 1/2/3 fallthrough cascade** (`packages/index/src/tier-orchestrator.ts` + three new tier retrievers + CATALOG.md generator extension to SP-005's index-persister): when Tier 0 (the SP-005 four-signal hybrid retriever, unchanged) returns < `[search].min_results` (default=3) hits, the orchestrator falls through to Tier 1 (BM25-only against `documents_fts`), Tier 2 (in-process body grep over `Paths.data() + '/CATALOG.md'`), Tier 3 (`runTool('grep', ['-rn','-l','--include=*.md', <pattern>, Paths.docs()])` per Constitution XII subprocess hygiene). Each SearchHit carries a new `tier_used: z.enum(['hybrid','bm25-only','catalog-grep','fs-grep'])` field. Cascade is bounded by `config.toml [search].tier_total_budget_ms` (default 600 ms = 20 + 5 + 50 + 500 + 25 ms slack per §10.6) enforced via AbortController + setTimeout/clearTimeout (NEVER Promise.race(setTimeout) — Constitution VII forbidden). Per-tier targets per §10.6 are TARGETS not guarantees (Constitution XVI honest commitment at 5x aspirational).
+
+**CATALOG.md generator** (FR-HARDEN-018): auto-generated at SP-005 index-stage time. SP-006 extends `packages/storage/src/index-persister.ts` to append a line after each successful index transaction (post-COMMIT — Constitution VIII transactional unit is the SQL writes; CATALOG.md is a flat-file mirror like the SP-004 body-file frontmatter). Format: `<doc-id> | <title> | <facet_domain> | <facet_type> | <summary-first-200-chars>`. `corpus reindex` (SP-006-extended) regenerates CATALOG.md wholesale. Lives at `Paths.data() + '/CATALOG.md'`. If absent (legacy DB), Tier 2 emits `search.tier_skipped` with `reason='catalog_missing'` and falls through to Tier 3.
+
+**Telemetry classes** (14 SP-006 variants in `TelemetryEvent` + 1 updated SP-005 variant):
+
+Recovery: `recovery.scan_started` · `recovery.scan_completed` · `recovery.scan_skipped` · `recovery.scan_reentry` · `recovery.orphan_found` · `recovery.resumed` · `recovery.aborted` · `recovery.telemetry_parse_failed` · `recovery.aborted_scan`
+
+Failures resource: `failures.sidecar_parse_failed`
+
+Tier fallthrough: `search.tier_fallthrough` · `search.tier_skipped` · `search.tier_failed` · `search.tier_budget_exceeded` · `search.completed` (UPDATED — `tier_used` field upgraded from `z.literal('hybrid')` to `z.enum([...])`)
+
+**Drain-lock contract** (FR-HARDEN-006): the recovery scanner acquires `Paths.drainLock()` BEFORE reading telemetry AND before re-queueing. Concurrent CLI invocations (`corpus drain`, `corpus reenrich`, `corpus reindex`) during recovery emit `pipeline.lock_contention` + exit 0 (FR-INGEST-011 / FR-CLASSIFY-015 / FR-RETRIEVAL-018 contract preserved across the new recovery surface). Read paths (`corpus://failures`, `corpus.find` queries) are NOT gated by the drain-lock — Constitution III substrate reads are non-blocking.
+
+**Trigger surfaces** (FR-HARDEN-024 — no new MCP surfaces beyond the read-only `corpus://failures`):
+
+- **Daemon startup hook** — `packages/daemon/src/index.ts` invokes `await runRecoveryScan(deps, signal)` AFTER Ollama-availability check AND BEFORE watcher / classify-hook / embed-hook chain activation.
+- **MCP resource handler** — `packages/transport/src/failures-resource-handler.ts` delegates to `failures-resource-adapter.ts`. Read-only by construction.
+- **Tier orchestrator** — `packages/index/src/tier-orchestrator.ts` wraps the SP-005 `searchOrchestrator` as Tier 0 then cascades.
+
+**SP-006 is the FINAL substrate sprint**: after merge, the corpus substrate is install-complete (SP-001..SP-006 all on `main`). Product / app sprints (v1.5+) build on top — retrieval-eval harness, CLI for failures cleanup, dimension-change migration, chunked embeddings, etc.
 
 # Working in this repo
 

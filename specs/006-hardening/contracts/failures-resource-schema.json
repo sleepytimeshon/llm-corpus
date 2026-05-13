@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://llm-corpus.example/contracts/failures-resource-response.json",
+  "title": "FailuresResourceResponse (SP-006)",
+  "description": "Response shape for the corpus://failures MCP read-only resource. Mirrors the SP-002 corpus://recent paginated pattern. Per-entry shape preserves the SP-003 verbatim sidecar schema (doc_id, stage, error_code, message, timestamp, retriable) plus the SP-006-added sidecar_path field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entries", "total_count", "returned_count", "schema_version"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/FailureEntry" },
+      "description": "Paginated, post-filter entries. Ordered descending by timestamp (most-recent failure first). Length equals returned_count and is bounded by limit (default 50; hard cap 1000)."
+    },
+    "total_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Post-filter, pre-pagination count of FailureEntry records discovered in Paths.failed(). May be ≥ entries.length when offset > 0 or total exceeds limit."
+    },
+    "returned_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equals entries.length. Equals min(total_count - offset, limit)."
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version for forward compatibility. SP-006 ships version 1; future SP-007+ may ship version 2 additively."
+    }
+  },
+  "definitions": {
+    "FailureEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doc_id", "stage", "error_code", "message", "timestamp", "retriable", "sidecar_path"],
+      "properties": {
+        "doc_id": {
+          "oneOf": [
+            { "type": "string", "pattern": "^doc-[0-9a-f]{8}$" },
+            { "type": "null" }
+          ],
+          "description": "Document ID if assigned at failure time; null for pre-persist failures (e.g., ingest validation before doc_id was generated)."
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "validation",
+            "hash",
+            "normalize",
+            "persist",
+            "classify",
+            "embed",
+            "index",
+            "edges-build",
+            "unrecoverable_orphan"
+          ],
+          "description": "Pipeline stage that produced the failure. Closed enum extending the SP-003 stage column with SP-006's 'unrecoverable_orphan' for recovery-scanner non-resumable sidecars."
+        },
+        "error_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Stage-specific error code (e.g., 'validation_failed', 'mime_disallowed', 'classify_schema_invalid', 'embed_dimension_mismatch', 'unrecoverable_orphan'). Bounded string."
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Human-readable diagnostic message. Constitution V bounded; never includes body content (Constitution I)."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp from the sidecar. Sort key for pagination (descending)."
+        },
+        "retriable": {
+          "type": "boolean",
+          "description": "Whether the operator should retry the underlying operation. SP-003-written; SP-006 surfaces verbatim. Recovery-sidecars (error_code='unrecoverable_orphan') always have retriable=false."
+        },
+        "sidecar_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "SP-006-added: absolute path to the sidecar under Paths.failed() so operators can rm after triaging. Always within Paths.failed() (Constitution XIV)."
+        }
+      }
+    },
+    "FailuresQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Parsed query parameters for the corpus://failures resource handler. All fields optional with defaults.",
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "validation",
+            "hash",
+            "normalize",
+            "persist",
+            "classify",
+            "embed",
+            "index",
+            "edges-build",
+            "unrecoverable_orphan"
+          ],
+          "description": "Filter by stage (closed enum). Unknown values produce a validation_error envelope as a successful resource response."
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Only include entries with timestamp >= since."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "description": "Pagination size. Default 50 is conservative for typical inspection workflows; hard cap 1000."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Pagination offset (zero-indexed)."
+        }
+      }
+    },
+    "ValidationErrorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error_code", "message", "hint"],
+      "description": "Returned as a successful MCP resource response when query parameters fail Zod validation. NOT a JSON-RPC transport error. Mirrors SP-005 FR-RETRIEVAL-004 envelope pattern.",
+      "properties": {
+        "error_code": {
+          "type": "string",
+          "enum": ["validation_error", "internal_error"],
+          "description": "Closed enum. 'validation_error' for invalid query parameters; 'internal_error' for adapter / Zod-validation failures during response shaping."
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "hint": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}
