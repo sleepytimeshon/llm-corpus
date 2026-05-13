@@ -138,8 +138,21 @@ function loadFts5Snippets(
       const excerpt = (r.body_excerpt ?? '').slice(0, 200);
       map.set(r.doc_id, excerpt);
     }
-  } catch {
-    // FTS5 read failed; snippets fall back to empty strings.
+  } catch (caught) {
+    // Constitution XIII (Telemetry-or-Die): emit structured event before
+    // falling through to empty-snippet defaults. Snippet failure is a
+    // partial-outcome warning, not a search failure — BM25/dense/graph/
+    // confidence retrievers already returned their hits successfully;
+    // we're only enriching display text.
+    const message = caught instanceof Error ? caught.message : String(caught);
+    void emitTelemetry({
+      event: 'search.snippet_fetch_failed',
+      timestamp: new Date().toISOString(),
+      severity: 'warn',
+      outcome: 'failed',
+      doc_id_count: docIds.length,
+      message: message.slice(0, 512),
+    });
   }
   return map;
 }
@@ -382,15 +395,25 @@ export async function searchOrchestrator(
     for (const c of childSignals) c.cleanup();
 
     const signalsArr: RankingSignal[] = [bm25Sig, denseSig, graphSig, confidenceSig];
+    // Constitution XVI (Validation Honesty): disabled signals are
+    // administratively off, NOT degraded. They appear in neither
+    // `signals_used` (they didn't function) nor `degraded_signals`
+    // (they weren't supposed to). The disabled-signal path through
+    // `RankingSignal{succeeded: true, results: []}` keeps fusion
+    // logic uniform; here we recategorize for honest reporting.
     const succeeded: RankingSignalName[] = signalsArr
-      .filter((s) => s.succeeded)
+      .filter((s) => s.succeeded && !disabled.has(s.kind))
       .map((s) => s.kind);
     const degraded: RankingSignalName[] = signalsArr
-      .filter((s) => !s.succeeded)
+      .filter((s) => !s.succeeded && !disabled.has(s.kind))
       .map((s) => s.kind);
 
-    // Total failure → all_signals_failed envelope.
-    if (degraded.length === 4) {
+    // Total-failure envelope fires only when EVERY enabled signal failed —
+    // if all 4 signals are disabled (degenerate test config), there are
+    // 0 enabled signals; in that case fusion produces empty hits but
+    // no error envelope is emitted.
+    const enabledCount = 4 - disabled.size;
+    if (enabledCount > 0 && degraded.length === enabledCount) {
       await emitTelemetry({
         event: 'search.error',
         timestamp: new Date().toISOString(),

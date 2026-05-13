@@ -776,6 +776,22 @@ export const SearchErrorEvent = z.object({
 });
 export type SearchErrorEventType = z.infer<typeof SearchErrorEvent>;
 
+// Constitution XIII (Telemetry-or-Die): snippet enrichment is a secondary
+// step after hybrid retrieval succeeds. FTS5 read failure during snippet
+// load is a partial-outcome warning (the search itself returned hits with
+// valid scores; only display text fell back to empty strings).
+export const SearchSnippetFetchFailedEvent = z.object({
+  event: z.literal('search.snippet_fetch_failed'),
+  timestamp: ISO8601,
+  severity: Sp005Severity,
+  outcome: Sp005Outcome,
+  doc_id_count: z.number().int().nonnegative(),
+  message: Sp005BoundedMessage,
+});
+export type SearchSnippetFetchFailedEventType = z.infer<
+  typeof SearchSnippetFetchFailedEvent
+>;
+
 // Re-export SP-005 error_code enums so consumers bind against the same set.
 export const Sp005EmbedErrorCodeEnum = Sp005EmbedErrorCode;
 export type Sp005EmbedErrorCodeType = z.infer<typeof Sp005EmbedErrorCode>;
@@ -842,6 +858,7 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   SearchCompletedEvent,
   SearchDegradedEvent,
   SearchErrorEvent,
+  SearchSnippetFetchFailedEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 
