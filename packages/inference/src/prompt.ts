@@ -19,7 +19,8 @@
 //
 // FACET_TYPE_VALUES is named explicitly in the system message (the
 // constitutional 7-value enum per FR-CLASSIFY-014). Domain + tag axes are
-// rendered from the live snapshot — NO hardcoded `enum FacetDomain`.
+// rendered from the live snapshot — NO hardcoded FacetDomain enum (per
+// Principle XV / FR-CLASSIFY-014).
 
 import type { EstablishedVocabulary } from './vocabulary.js';
 import { FACET_TYPE_VALUES } from '@llm-corpus/contracts';
