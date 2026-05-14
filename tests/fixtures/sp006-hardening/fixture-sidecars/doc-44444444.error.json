@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-44444444",
+  "stage": "persist",
+  "error_code": "persist_failed",
+  "message": "SQLite UNIQUE constraint violation on hash",
+  "timestamp": "2026-05-13T08:03:04Z",
+  "retriable": true
+}

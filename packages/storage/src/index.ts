@@ -24,3 +24,7 @@ export * from './classify-persister.js';
 // SP-005 additions
 export * from './sp005-migration.js';
 export * from './index-persister.js';
+// SP-006 additions — Engineer #3 (T035) fills failures-resource-adapter;
+// Engineer #4 (T051) fills catalog-md-generator. Both are stubs in Phase 2.
+export * from './failures-resource-adapter.js';
+export * from './catalog-md-generator.js';

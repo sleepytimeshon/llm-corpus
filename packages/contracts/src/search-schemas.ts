@@ -50,8 +50,26 @@ export const SearchInputZodSchema = z
 export type SearchInput = z.infer<typeof SearchInputZodSchema>;
 
 /**
+ * Closed-vocabulary tier enum — labels which retrieval tier produced a
+ * SearchHit / drove the overall SearchOutput.
+ *
+ * SP-006: added as a REQUIRED field on SearchHit and as a widened enum on
+ * SearchOutput.tier_used (SP-005 used z.literal('hybrid')).
+ */
+export const SEARCH_TIER_VALUES = [
+  'hybrid',
+  'bm25-only',
+  'catalog-grep',
+  'fs-grep',
+] as const;
+export type SearchTier = (typeof SEARCH_TIER_VALUES)[number];
+
+/**
  * SearchHit — one entry in the corpus.find response's `hits` array. Canonical
  * schema mirrors specs/005-retrieval/contracts/search-hit-schema.json.
+ *
+ * SP-006: `tier_used` is a REQUIRED field reflecting the tier that produced
+ * this specific hit. Decision K (higher-tier wins on merge).
  */
 export const SearchHitZodSchema = z
   .object({
@@ -62,6 +80,7 @@ export const SearchHitZodSchema = z
     facet_type: z.enum(FACET_TYPE_VALUES),
     tags: z.array(z.string().min(1)),
     snippet: z.string().max(400),
+    tier_used: z.enum(SEARCH_TIER_VALUES),
   })
   .strict();
 export type SearchHit = z.infer<typeof SearchHitZodSchema>;
@@ -111,7 +130,9 @@ export const SearchOutputZodSchema = z
     hits: z.array(SearchHitZodSchema),
     query: z.string(),
     result_count: z.number().int().nonnegative(),
-    tier_used: z.literal('hybrid'),
+    // SP-006: widened from z.literal('hybrid') to the four-tier enum.
+    // Reflects the DEEPEST tier that produced any hit.
+    tier_used: z.enum(SEARCH_TIER_VALUES),
     signals_used: z.array(z.enum(RANKING_SIGNAL_NAMES)),
     degraded_signals: z.array(z.enum(RANKING_SIGNAL_NAMES)).optional(),
     filters_applied: SearchFiltersZodSchema.optional(),

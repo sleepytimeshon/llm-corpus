@@ -24,3 +24,6 @@ export * from './classifier-schema.js';
 
 // SP-005 additions
 export * from './search-schemas.js';
+
+// SP-006 additions
+export * from './failures-resource-schema.js';

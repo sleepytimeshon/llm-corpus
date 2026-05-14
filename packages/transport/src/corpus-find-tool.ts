@@ -1,20 +1,27 @@
 // SP-005 (T055 REPLACE) — corpus.find tool handler — real ranking.
+// SP-006 (Engineer #5 cutover) — delegates to the SP-006 tier-fallthrough
+// cascade (`runTieredSearch`) rather than the SP-005 Tier 0-only
+// `searchOrchestrator`. Tier 0 (hybrid) remains the primary retrieval
+// surface; Tiers 1/2/3 fire only when Tier 0 returns fewer than
+// `policy.minResultsForFallthrough` hits and the aggregate budget allows.
 //
 // References:
 //   - specs/005-retrieval/spec.md FR-RETRIEVAL-001, FR-RETRIEVAL-004,
 //     FR-RETRIEVAL-011, FR-RETRIEVAL-017, FR-RETRIEVAL-020
+//   - specs/006-hardening/spec.md FR-HARDEN-013..019
+//   - specs/006-hardening/contracts/adr-tier-fallthrough.md "Decision"
 //   - specs/005-retrieval/contracts/{search-hit,error-envelope}-schema.json
 //   - Constitution Principles III, V, VII
 //
-// Replaces the SP-001 placeholder. Validates input via the canonical
-// SearchInputZodSchema → on parse failure, returns a validation_error
-// envelope wrapped in the SearchOutput shape (as a SUCCESSFUL MCP tool
-// response, NOT a transport-level error per FR-RETRIEVAL-004 verbatim).
-// On success, delegates to @llm-corpus/index searchOrchestrator.
-//
-// The MCP server entry point is responsible for constructing the
-// dependencies (db handle, embedding adapter, weights config) once at boot
-// and threading them in via the handler factory below.
+// Behavior:
+//   1. Zod-parse the raw input via SearchInputZodSchema.
+//   2. On parse failure → return a `validation_error` envelope (SUCCESSFUL
+//      tool response per FR-RETRIEVAL-004).
+//   3. On parse success → build a TierDeps wired against the SP-005 Tier 0
+//      retriever (unmodified) plus SP-006 Tier 1/2/3 retrievers, then call
+//      `runTieredSearch`. Each SearchHit's `tier_used` field reflects the
+//      tier that produced it; the SearchOutput's cascade-level `tier_used`
+//      reflects the deepest contributing tier.
 
 import {
   SearchInputZodSchema,
@@ -25,7 +32,7 @@ import type { CorpusFindInputType } from './schemas.js';
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { EmbeddingAdapter } from '@llm-corpus/inference';
-import { searchOrchestrator } from '@llm-corpus/index';
+import { runTieredSearch, buildDefaultTierDeps } from '@llm-corpus/index';
 import type { ConfidenceWeights } from '@llm-corpus/index';
 import { interactivePolicy } from '@llm-corpus/pipeline';
 
@@ -39,7 +46,10 @@ export interface CorpusFindHandlerDeps {
   db: DatabaseType;
   /** Configured embedding adapter (single instance per server). */
   embeddingAdapter: EmbeddingAdapter;
-  /** Optional confidence-weight override (defaults to DEFAULT_CONFIDENCE_WEIGHTS). */
+  /** Optional confidence-weight override (defaults to DEFAULT_CONFIDENCE_WEIGHTS).
+   * Reserved for future Tier 0 wiring; the current SP-005 hybrid surface
+   * loads confidence weights internally from DEFAULT_CONFIDENCE_WEIGHTS.
+   */
   weightsConfig?: ConfidenceWeights;
 }
 
@@ -52,9 +62,9 @@ export interface CorpusFindHandlerDeps {
  *   1. Zod-parse the raw input via SearchInputZodSchema.
  *   2. On parse failure → return a `validation_error` envelope (SUCCESSFUL
  *      tool response per FR-RETRIEVAL-004).
- *   3. On parse success → call searchOrchestrator with the supplied
- *      AbortSignal. Return its SearchOutput unchanged (already validated
- *      by SearchOutputZodSchema inside the orchestrator).
+ *   3. On parse success → build a TierDeps and invoke `runTieredSearch` (the
+ *      SP-006 tier-fallthrough cascade). Returns the SearchOutput unchanged
+ *      (already validated by SearchOutputZodSchema inside the orchestrator).
  */
 export function createCorpusFindHandler(
   deps: CorpusFindHandlerDeps,
@@ -80,17 +90,23 @@ export function createCorpusFindHandler(
       });
     }
 
-    return searchOrchestrator({
+    const tierDeps = buildDefaultTierDeps({
       input: parsed.data,
       db: deps.db,
       embeddingAdapter: deps.embeddingAdapter,
-      weightsConfig: deps.weightsConfig,
       topKPerRetriever: interactivePolicy.topKPerRetriever,
       retrieverSqlTimeoutMs: interactivePolicy.retrieverSqlTimeoutMs,
       embeddingHttpTimeoutMs: interactivePolicy.embeddingHttpTimeoutMs,
       searchTotalTimeoutMs: interactivePolicy.searchTotalTimeoutMs,
-      signal,
+      policy: {
+        minResultsForFallthrough: interactivePolicy.minResultsForFallthrough,
+        tierTotalBudgetMs: interactivePolicy.tierTotalBudgetMs,
+        tierBm25TimeoutMs: interactivePolicy.tierBm25TimeoutMs,
+        tierCatalogGrepTimeoutMs: interactivePolicy.tierCatalogGrepTimeoutMs,
+        tierFsGrepTimeoutMs: interactivePolicy.tierFsGrepTimeoutMs,
+      },
     });
+    return runTieredSearch(parsed.data, tierDeps, signal);
   };
 }
 

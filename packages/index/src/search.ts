@@ -480,6 +480,9 @@ export async function searchOrchestrator(
         facet_type: row.facet_type,
         tags,
         snippet: snippetMap.get(row.id) ?? '',
+        // SP-006: SearchHit.tier_used is REQUIRED. SP-005 retriever is the
+        // Tier 0 hybrid implementation; all hits it produces carry this label.
+        tier_used: 'hybrid' as const,
       };
       const parsed = SearchHitZodSchema.safeParse(candidate);
       if (parsed.success) {

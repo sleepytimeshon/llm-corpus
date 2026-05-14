@@ -17,6 +17,8 @@ const validHit = {
   facet_type: 'tutorial' as const,
   tags: ['a'],
   snippet: 's',
+  // SP-006: SearchHit.tier_used is REQUIRED — see specs/006-hardening/data-model.md Entity for §"SearchHitZodSchema".
+  tier_used: 'hybrid' as const,
 };
 
 describe('PREREQ-001 — SearchHitZodSchema', () => {

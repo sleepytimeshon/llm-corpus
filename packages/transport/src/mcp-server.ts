@@ -297,8 +297,14 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
         ((extra as { signal?: AbortSignal })?.signal as AbortSignal | undefined) ??
         new AbortController().signal;
 
-      // Exact-match dispatch first (the three static URIs).
-      const exact = exactDispatch.get(uri);
+      // SP-006 — split URI on '?' so static resources can carry query
+      // parameters (e.g., `corpus://failures?stage=classify&limit=10`). The
+      // four SP-002 resources don't use query strings; the exact-match key
+      // is preserved for them. The full URI (with query) is passed through
+      // to the handler so resources like corpus://failures can parse it.
+      const qIdx = uri.indexOf('?');
+      const exactKey = qIdx === -1 ? uri : uri.slice(0, qIdx);
+      const exact = exactDispatch.get(exactKey);
       if (exact) {
         return exact(uri, signal);
       }
@@ -407,6 +413,15 @@ export async function startMcpServer(): Promise<BuiltMcpServer> {
     './resource-recent-handler.js'
   );
   registerRecentResource(built);
+
+  // SP-006 T037 — register the fifth read-only resource, corpus://failures.
+  // Read-only by construction (Constitution III); the
+  // `no-writes-from-resource-handlers` lint rule covers both the handler and
+  // the storage adapter.
+  const { registerFailuresResource } = await import(
+    './failures-resource-handler.js'
+  );
+  registerFailuresResource(built);
 
   const transport = new StdioServerTransport();
   await built.server.connect(transport);

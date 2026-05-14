@@ -57,6 +57,30 @@ export const PolicySchema = z.object({
   searchTotalTimeoutMs: z.number().int().min(1000).default(30_000),
   /** Per-retriever top-K (Decision C). */
   topKPerRetriever: z.number().int().min(1).max(256).default(64),
+  // --- SP-006 fields (PREREQ-004 / Decision M) ---
+  // Optional with defaults so existing SP-003/SP-004/SP-005 Policy literals
+  // continue to parse unchanged; PolicySchema.parse() fills in v1 defaults
+  // when absent. Recovery + tier policies are not policy-dependent in v1
+  // (interactive and batch share the same defaults).
+  /** Recovery scanner wall-clock cap before forced abort (ms). */
+  recoveryScanTimeoutMs: z.number().int().min(1000).default(30_000),
+  /** Tier-cascade aggregate budget (ms). */
+  tierTotalBudgetMs: z.number().int().min(50).max(30_000).default(600),
+  /** Tier 1 (BM25-only FTS5) per-call timeout (ms). */
+  tierBm25TimeoutMs: z.number().int().min(1).max(10_000).default(5),
+  /** Tier 2 (in-process CATALOG.md grep) per-call timeout (ms). */
+  tierCatalogGrepTimeoutMs: z.number().int().min(1).max(10_000).default(50),
+  /** Tier 3 (fs-grep subprocess) per-call timeout (ms). */
+  tierFsGrepTimeoutMs: z.number().int().min(1).max(30_000).default(500),
+  /** corpus://failures resource read wall-clock cap (ms). */
+  failuresResourceTimeoutMs: z
+    .number()
+    .int()
+    .min(100)
+    .max(60_000)
+    .default(5_000),
+  /** Minimum result count before the orchestrator falls through to the next tier. */
+  minResultsForFallthrough: z.number().int().min(0).max(100).default(3),
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
@@ -82,6 +106,14 @@ export const interactivePolicy: Policy = PolicySchema.parse({
   retrieverSqlTimeoutMs: 5_000,
   searchTotalTimeoutMs: 30_000,
   topKPerRetriever: 64,
+  // SP-006 (Decision M — same defaults for interactive + batch):
+  recoveryScanTimeoutMs: 30_000,
+  tierTotalBudgetMs: 600,
+  tierBm25TimeoutMs: 5,
+  tierCatalogGrepTimeoutMs: 50,
+  tierFsGrepTimeoutMs: 500,
+  failuresResourceTimeoutMs: 5_000,
+  minResultsForFallthrough: 3,
 });
 
 /**
@@ -106,4 +138,12 @@ export const batchPolicy: Policy = PolicySchema.parse({
   retrieverSqlTimeoutMs: 10_000,
   searchTotalTimeoutMs: 60_000,
   topKPerRetriever: 64,
+  // SP-006 (Decision M — same defaults for interactive + batch):
+  recoveryScanTimeoutMs: 30_000,
+  tierTotalBudgetMs: 600,
+  tierBm25TimeoutMs: 5,
+  tierCatalogGrepTimeoutMs: 50,
+  tierFsGrepTimeoutMs: 500,
+  failuresResourceTimeoutMs: 5_000,
+  minResultsForFallthrough: 3,
 });

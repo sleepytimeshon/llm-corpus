@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-55555555",
+  "stage": "classify",
+  "error_code": "schema_invalid",
+  "message": "Ollama returned malformed JSON (missing facet_domain)",
+  "timestamp": "2026-05-13T08:04:05Z",
+  "retriable": true
+}

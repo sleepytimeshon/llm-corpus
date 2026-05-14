@@ -13,6 +13,14 @@ This document walks the operator through the three SP-006 deliverables on the us
 - `grep --version` returns a POSIX-compatible grep binary on PATH.
 - A seeded inbox with mixed-MIME documents available for the kill-9 sim (PDFs, Markdown, plain-text, HTML).
 
+### Prereq verification log (T001, 2026-05-13)
+
+- `command -v grep` → resolvable (binary on PATH).
+- `/usr/bin/grep --version` → `grep (GNU grep) 3.12` (POSIX-compatible).
+- SP-001..SP-005 merge commits on `main`: 791e8aa (SP-001), f36a074/6232f2b/8bd09c7 (SP-002), 74a0370 (SP-003), 33f233c (SP-004), 7592eb9 (SP-005). SP-005 head commit: 7592eb9.
+- All required `Paths.*` getters present in `packages/contracts/src/paths.ts`: `data`, `telemetry`, `drainLock`, `docs`, `inbox`, `failed`.
+- Node v22.22.0, npm 10.9.4, gh CLI authenticated as `sleepytimeshon`.
+
 ## Walkthrough 1 — Simulate kill-9 mid-classify and observe recovery
 
 **Goal**: Demonstrate that the daemon survives a SIGKILL mid-classify and recovers orphan work on restart.

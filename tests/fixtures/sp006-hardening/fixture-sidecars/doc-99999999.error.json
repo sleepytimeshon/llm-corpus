@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-99999999",
+  "stage": "edges-build",
+  "error_code": "edges_build_timeout",
+  "message": "candidate-pool computation exceeded perDocEdgesBuildTimeoutMs",
+  "timestamp": "2026-05-13T08:08:09Z",
+  "retriable": true
+}

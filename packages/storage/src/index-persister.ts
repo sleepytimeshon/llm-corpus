@@ -15,9 +15,14 @@ import type { Database as DatabaseType } from 'better-sqlite3';
 import {
   ok,
   err,
+  emitTelemetry,
   type Result,
   IndexPersistError,
 } from '@llm-corpus/contracts';
+import {
+  appendCatalogLine,
+  type CatalogLineInput,
+} from './catalog-md-generator.js';
 
 /**
  * Encode a Float32Array as a SQLite BLOB binding suitable for the vec0
@@ -178,4 +183,122 @@ export async function persistIndex(
       ),
     );
   }
+}
+
+// ============================================================================
+// SP-006 T052 — persistIndexWithCatalog: SP-005 persist + CATALOG.md append
+// ============================================================================
+//
+// Wraps the SP-005 caller-owned transaction protocol with:
+//   1. BEGIN IMMEDIATE
+//   2. persistIndex(...)      ← SP-005 FTS5 + vec + edges INSERTs
+//   3. COMMIT (or ROLLBACK on failure)
+//   4. appendCatalogLine(...) ← SP-006 flat-file mirror (post-COMMIT)
+//
+// Constitution VIII: the SQL writes are the transactional unit. CATALOG.md
+// is a flat-file MIRROR (similar to the SP-004 body-file frontmatter
+// rewrite) — append failure does NOT roll back the SQL transaction.
+// CATALOG.md append failure emits `catalog.append.failed` telemetry but
+// surfaces a non-fatal Result.ok (the index transaction succeeded).
+
+export interface CatalogPersistInput extends PersistIndexInput {
+  /** Catalog line metadata. Title / facets / summary used to materialize the line. */
+  catalog: CatalogLineInput;
+}
+
+/**
+ * Persist the SP-005 index entries in a CALLER-MANAGED transaction wrapped
+ * by this function, then append the SP-006 CATALOG.md line. On SQL failure,
+ * the transaction is rolled back and CATALOG.md is NOT touched.
+ */
+export async function persistIndexWithCatalog(
+  input: CatalogPersistInput,
+  db: DatabaseType,
+): Promise<Result<void, IndexPersistError>> {
+  if (input.signal.aborted) {
+    return err(
+      new IndexPersistError({
+        doc_id: input.docId,
+        stage: 'fts5',
+        message: 'persist aborted before BEGIN',
+      }),
+    );
+  }
+
+  db.exec('BEGIN IMMEDIATE');
+  let persistResult: Result<void, IndexPersistError>;
+  try {
+    persistResult = await persistIndex(input, db);
+  } catch (caught) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* best-effort */
+    }
+    const message = caught instanceof Error ? caught.message : String(caught);
+    return err(
+      new IndexPersistError(
+        {
+          doc_id: input.docId,
+          stage: 'fts5',
+          message: `persist crashed: ${message}`,
+        },
+        caught,
+      ),
+    );
+  }
+
+  if (!persistResult.ok) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* best-effort */
+    }
+    return persistResult;
+  }
+
+  try {
+    db.exec('COMMIT');
+  } catch (caught) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      /* best-effort */
+    }
+    const message = caught instanceof Error ? caught.message : String(caught);
+    return err(
+      new IndexPersistError(
+        {
+          doc_id: input.docId,
+          stage: 'fts5',
+          message: `commit failed: ${message}`,
+        },
+        caught,
+      ),
+    );
+  }
+
+  // Post-COMMIT — CATALOG.md flat-file mirror. Failure is NON-fatal per
+  // Constitution VIII (SQL is the transactional unit). Telemetry-or-die per
+  // Constitution XIII.
+  try {
+    await appendCatalogLine(input.catalog, input.signal);
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    await emitTelemetry({
+      event: 'search.tier_failed',
+      timestamp: new Date().toISOString(),
+      severity: 'warn',
+      outcome: 'failed',
+      tier: 'catalog-grep',
+      error_code: 'catalog_append_failed',
+      duration_ms: 0,
+    }).catch(() => {
+      // never crash on telemetry failure
+    });
+    // Don't fail the persist — CATALOG.md is a mirror.
+    void message;
+  }
+
+  return ok(undefined);
 }

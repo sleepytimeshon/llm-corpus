@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-66666666",
+  "stage": "classify",
+  "error_code": "vocabulary_violation",
+  "message": "tag 'lord-of-the-rings' not in established or proposed vocabulary",
+  "timestamp": "2026-05-13T08:05:06Z",
+  "retriable": false
+}
