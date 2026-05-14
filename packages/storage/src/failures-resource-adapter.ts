@@ -184,14 +184,11 @@ export async function readFailuresEntries(
   signal.throwIfAborted();
   const failedDir = Paths.failed();
   const files = await listSidecarFiles(failedDir, signal);
-  const entries: FailureEntry[] = [];
-  for (const file of files) {
-    signal.throwIfAborted();
-    const entry = await parseSidecar(file, signal);
-    if (entry !== null) {
-      entries.push(entry);
-    }
-  }
+  // Parse sidecars in parallel — independent fs.readFile per file. Each
+  // parseSidecar performs its own signal.throwIfAborted() at entry, so
+  // an abort mid-batch still surfaces as a rejection.
+  const parsed = await Promise.all(files.map((file) => parseSidecar(file, signal)));
+  const entries: FailureEntry[] = parsed.filter((e): e is FailureEntry => e !== null);
   const filtered = applyFilters(entries, query);
   const sorted = sortDescByTimestamp(filtered);
   const page = sorted.slice(query.offset, query.offset + query.limit);

@@ -291,13 +291,12 @@ export async function persistIndexWithCatalog(
       severity: 'warn',
       outcome: 'failed',
       tier: 'catalog-grep',
-      error_code: 'catalog_append_failed',
+      error_code: `catalog_append_failed: ${message}`.slice(0, 128),
       duration_ms: 0,
     }).catch(() => {
       // never crash on telemetry failure
     });
     // Don't fail the persist — CATALOG.md is a mirror.
-    void message;
   }
 
   return ok(undefined);

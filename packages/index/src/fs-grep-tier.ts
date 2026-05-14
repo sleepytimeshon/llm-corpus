@@ -179,11 +179,11 @@ export async function runFsGrepTier(input: FsGrepInput): Promise<TierResult> {
     };
   }
 
-  const stdoutLines = r.value.stdout
+  const stdoutLinesAll = r.value.stdout
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  if (stdoutLines.length === 0) {
+  if (stdoutLinesAll.length === 0) {
     return {
       tier: 'fs-grep',
       hits: [],
@@ -191,6 +191,13 @@ export async function runFsGrepTier(input: FsGrepInput): Promise<TierResult> {
       outcome: 'completed',
     };
   }
+
+  // Cap the SQL IN-clause length. SQLite default SQLITE_MAX_VARIABLE_NUMBER
+  // is 999 on older builds; popular grep matches can exceed it. We only
+  // need ~5× the requested limit for downstream ranking — anything more
+  // wastes a SQL roundtrip and can hit the parameter ceiling.
+  const inClauseCap = Math.min(stdoutLinesAll.length, Math.max((input.input.limit ?? 20) * 5, 50));
+  const stdoutLines = stdoutLinesAll.slice(0, inClauseCap);
 
   // Reverse-map file paths → doc_ids via documents.body_path lookup.
   const placeholders = stdoutLines.map(() => '?').join(', ');

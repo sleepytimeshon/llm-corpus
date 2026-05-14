@@ -35,6 +35,7 @@ import {
   regenerateCatalogFromDb,
 } from '@llm-corpus/storage';
 import { EmbeddingAdapter } from '@llm-corpus/inference';
+import type { Database as DatabaseType } from 'better-sqlite3';
 
 export interface ReindexSummary {
   indexed: number;
@@ -102,7 +103,7 @@ export async function runReindexCommand(
   }
   const lock = lockResult.value;
 
-  let db;
+  let db: DatabaseType;
   try {
     db = openIndexReadWrite();
   } catch (caught) {

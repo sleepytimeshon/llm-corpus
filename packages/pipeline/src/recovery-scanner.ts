@@ -30,7 +30,6 @@
 // chunks. Constitution VII is satisfied either way.
 
 import * as fs from 'node:fs';
-import * as fsp from 'node:fs/promises';
 import * as readline from 'node:readline';
 import { Paths as DefaultPaths, emitTelemetry } from '@llm-corpus/contracts';
 import { acquireDrainLock } from './drain-lock.js';
@@ -545,5 +544,3 @@ export { RECOVERY_STAGES };
 // Re-export types from resumability for ergonomic single-module import.
 export type { RecoveryOrphan, RecoveryStage } from './recovery-resumability.js';
 
-// Touch fsp to keep import live for future streaming-replacement variants.
-void fsp;

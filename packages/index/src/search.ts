@@ -70,13 +70,17 @@ function sha256Hex(s: string): string {
  * MUST be called to clear the setTimeout and remove the parent listener
  * (Constitution VII forbids Promise.race(setTimeout)).
  */
-function abortChild(
+export function abortChild(
   parent: AbortSignal,
   timeoutMs: number,
 ): { signal: AbortSignal; cleanup: () => void } {
   const child = new AbortController();
   const onParent = (): void => child.abort();
-  parent.addEventListener('abort', onParent, { once: true });
+  if (parent.aborted) {
+    child.abort();
+  } else {
+    parent.addEventListener('abort', onParent, { once: true });
+  }
   const handle = setTimeout(() => child.abort(), timeoutMs);
   const cleanup = (): void => {
     clearTimeout(handle);

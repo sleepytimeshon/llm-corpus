@@ -56,29 +56,7 @@ export interface TierDeps {
 
 const TIER_ORDER: TierName[] = ['hybrid', 'bm25-only', 'catalog-grep', 'fs-grep'];
 
-/**
- * Build a child AbortSignal that fires on parent OR after `timeoutMs`.
- * Returns { signal, cleanup }; cleanup MUST run to clear setTimeout +
- * remove parent listener.
- */
-function abortChild(
-  parent: AbortSignal,
-  timeoutMs: number,
-): { signal: AbortSignal; cleanup: () => void } {
-  const child = new AbortController();
-  const onParent = (): void => child.abort();
-  if (parent.aborted) {
-    child.abort();
-  } else {
-    parent.addEventListener('abort', onParent, { once: true });
-  }
-  const handle = setTimeout(() => child.abort(), timeoutMs);
-  const cleanup = (): void => {
-    clearTimeout(handle);
-    parent.removeEventListener('abort', onParent);
-  };
-  return { signal: child.signal, cleanup };
-}
+// abortChild is now exported from ./search.ts (consolidated).
 
 /**
  * Orchestrate the tier-fallthrough cascade. Returns a complete SearchOutput
@@ -264,6 +242,7 @@ import type { EmbeddingAdapter } from '@llm-corpus/inference';
 import {
   searchOrchestrator,
   type SearchOrchestratorInput,
+  abortChild,
 } from './search.js';
 import { runBm25OnlyTier } from './bm25-only-tier.js';
 import { runCatalogGrepTier } from './catalog-grep-tier.js';
