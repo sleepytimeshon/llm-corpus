@@ -1,6 +1,6 @@
 # llm-corpus Session State
 
-**Last updated:** 2026-05-14 (SP-006 implementation complete — PR open against main)
+**Last updated:** 2026-05-14 — SP-006 merged; **llm-corpus substrate is PRODUCTION-READY**
 **Authoritative:** this file. Memory pointers in ~/.claude reference here.
 
 ## Current status
@@ -12,9 +12,24 @@
 | SP-003 | Ingest pipeline — inbox watcher → validation → hash → normalize → persist | ✅ Merged 2026-05-12 (PR #11; daemon fix #12) |
 | SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | ✅ Merged 2026-05-13 (PR #13, commit 33f233c) |
 | SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ Merged 2026-05-13 (PR #14, commit 7592eb9) |
-| SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | 🟡 **PR open against main** (2026-05-14) |
+| SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ✅ **Merged 2026-05-14 (PR #15, squash commit 5237916)** |
 
-**Branch:** `006-hardening`. SP-001 through SP-005 merged on `main`; SP-006 PR pending review/merge.
+**Branch:** `main` clean. SP-001 through SP-006 all on `main`. **The substrate is feature-complete and production-ready.**
+
+## Production milestone — REACHED 2026-05-14
+
+All six substrate sprints landed. The corpus is install-ready, classify-ready, embed-ready, search-ready (with four-tier graceful degradation), kill-9-recoverable, and failure-introspectable via the read-only `corpus://failures` MCP resource. Test surface: 878 passing across 187 files; build + lint exit 0 on Node 20 + Node 22 in CI.
+
+### Post-merge polish backlog (non-blocking; will land in a follow-up PR)
+
+- Dead error-class wiring — 6 SP-006 typed errors are exported and tested but never thrown by production code. Wire them in at the appropriate failure sites (FailuresResourceError, CatalogMissingError, GrepSubprocessError) or delete.
+- Tier speculative parallelism — current cascade is strictly sequential (Tier 0 → 1 → 2 → 3). Future optimization: fire Tier 0/1/2 in parallel under per-tier budgets; gate Tier 3 (the expensive subprocess) on `merged.size < minResultsForFallthrough`.
+- Telemetry envelope mismatch — `search.tier_failed` is currently emitted for CATALOG.md write/regenerate failures. Add a dedicated `catalog.append_failed` / `catalog.regenerate_failed` event class and relabel.
+- Config-loader consolidation — three near-identical TOML section loaders (`loadResourceConfig`, `loadIngestConfig`, `loadSearchConfig`) should share a `readConfigToml()` helper.
+- Live pai-node01 p95 latency measurement for §10.6 tier targets (T060–T063 from SP-006 tasks.md).
+- requirements.md outcome marking (T064).
+- CLAUDE.md SP-006 surface section (T065).
+- `.specify/feature.json` update (T066).
 
 ## SP-006 implementation summary (2026-05-14)
 
@@ -35,9 +50,14 @@ The substrate is install-ready in the sense the user directed:
 |---|---|---|
 | User drops files in inbox, system ingests | SP-003 | ✅ Ready |
 | System classifies metadata so the corpus is structured | SP-004 | ✅ Ready |
-| System embeds + indexes for semantic search | SP-005 | ✅ **Ready** |
-| `corpus.find` MCP tool returns ranked relevant docs | SP-005 | ✅ **Ready** |
+| System embeds + indexes for semantic search | SP-005 | ✅ Ready |
+| `corpus.find` MCP tool returns ranked relevant docs | SP-005 | ✅ Ready |
 | `corpus reindex [--dry-run]` CLI for manual backfill | SP-005 | ✅ Ready |
+| Daemon survives SIGKILL mid-pipeline; recovers on restart | SP-006 | ✅ **Ready** |
+| `corpus://failures` MCP resource exposes failed-lane sidecars | SP-006 | ✅ **Ready** |
+| Tier 1/2/3 fallthrough on sparse Tier 0 (BM25-only → CATALOG grep → fs-grep) | SP-006 | ✅ **Ready** |
+| Per-tier latency budget enforced via AbortController | SP-006 | ✅ **Ready** |
+| `corpus reindex [--no-catalog]` to skip CATALOG.md regeneration | SP-006 | ✅ **Ready** |
 
 The agent can now:
 1. Drop documents into `Paths.inbox()`
