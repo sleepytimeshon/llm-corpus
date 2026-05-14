@@ -1,0 +1,82 @@
+# Specification Quality Checklist: Production Hardening (SP-006)
+
+**Purpose**: Validate specification completeness and quality before proceeding to `/speckit-plan` (already completed) / `/speckit-tasks`
+**Created**: 2026-05-13
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs) — implementation library choices (`flock`, `fs.appendFile`, `runTool`, `grep`) appear only as load-bearing identifiers binding to constitutional principles or to pre-resolved decisions. Concrete code symbols (`AbortSignal`, `flock(LOCK_EX | LOCK_NB)`, `setTimeout / clearTimeout`, `BEGIN IMMEDIATE`) appear only where binding to constitutional principles (Principle VII AbortSignal, Principle IX drain-lock, Principle XII subprocess hygiene). The CATALOG.md file path and the `grep -rn` flag list are load-bearing facts, not implementation drift.
+- [x] Focused on user value and business needs — every user story is framed in terms of what the user (and the agent-as-principal) experiences: kill-9 recovery is autonomous (US1), failure backlog is agent-readable (US2), tier fallthrough gracefully degrades for hard queries (US3).
+- [x] Written for non-technical stakeholders — Shon (sole stakeholder + sole developer) is the audience; the technical specificity is calibrated to him.
+- [x] All mandatory sections completed — User Scenarios & Testing, Requirements, Success Criteria, Assumptions, Out of Scope all populated.
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain — the spec resolved all SP-006 v1 ambiguities by binding to existing artifacts (SP-001 telemetry-event surface, SP-002 read-only resource pattern, SP-003 failure-lane.ts sidecar shape, SP-004 classifier idempotency, SP-005 atomic index transaction + four-signal hybrid retriever + `tier_used` hardcoded `'hybrid'` baseline, ARCHITECTURE-FINAL §10.6 four-tier model, Constitution's 16 principles). Plan-stage decisions (recovery detection algorithm, resumability matrix, failures resource URI + pagination, tier-fallthrough trigger threshold, per-tier latency budgets, CATALOG.md generation timing, fs-grep subprocess hygiene, schema versioning) are explicitly resolved in `research.md` (Decisions A through N), not as spec-level ambiguities.
+- [x] Requirements are testable and unambiguous — every FR-HARDEN-NNN names a behavior, a source (Constitution / Decision / verbatim citation), and a verification path.
+- [x] Success criteria are measurable — every SC-HARDEN-NNN names a concrete pass condition (row counts, sidecar shapes, telemetry-event coverage counts, response-shape assertions, lint-detected zero-violations, p95 wall-clock thresholds).
+- [x] Success criteria are technology-agnostic where possible — phrased in terms of orphan-recovery state, sidecar-glob counts, tier-cascade ordering, telemetry-class coverage. Identifiers like `grep`, `runTool`, `flock`, `setTimeout/clearTimeout` appear only where Constitution XII / Constitution VII binds them.
+- [x] All acceptance scenarios are defined — every user story has ≥ 5 Given/When/Then scenarios; collectively 21 scenarios cover the recovery happy/sad paths, the failures resource happy/edge-case paths, the four-tier cascade happy/edge-case paths.
+- [x] Edge cases are identified — 12 edge cases enumerated (kill mid-classify, kill mid-embed, kill mid-edges-build, kill during recovery, telemetry log corrupted, sidecar JSON malformed, CATALOG.md absent, all four tiers return empty, Tier 3 grep fails to start, recovery scan before daemon.started, query during recovery, concurrent recovery across two daemons, large failure backlog).
+- [x] Scope is clearly bounded — Out of Scope section enumerates ≥ 15 explicit deferrals to other SPs / non-goals, including MCP mutation surfaces, automated kill-9 testing in CI, recovery from corrupted SQLite file, retrieval-eval harness, Tier 4+, cross-corpus federation, worker-pool parallelism, chunked embeddings, model-change auto-detection, user-facing recovery review UI, `corpus://recovery` MCP resource, sidecar auto-deletion, PRD-defined CATALOG.md extensions, cross-agent compatibility claims.
+- [x] Dependencies and assumptions identified — Assumptions section enumerates ≥ 12 prerequisites and pre-resolved decisions, each with an explicit source (SP-001..SP-005 merged, `grep` binary available on PATH, `Paths.*` getters present, schema baselines, failure-lane sidecar schema stable, SearchHit additive extension, no worker-pool, `corpus://failures` only new MCP surface, no `process.exit` in libs, recovery scan bounded by previous session size, CATALOG.md operator-readable, no automatic sidecar cleanup).
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria — 24 FR-HARDEN-NNN requirements map to 24 SC-HARDEN-NNN measurable outcomes. The mapping is many-to-many but every FR-HARDEN is covered by ≥ 1 SC-HARDEN.
+- [x] User scenarios cover primary flows — US1 (kill-9 recovery, P1), US2 (`corpus://failures` resource read, P1), US3 (tier 1/2/3 fallthrough, P2). The three stories cover the three orthogonal SP-006 deliverables.
+- [x] Feature meets measurable outcomes defined in Success Criteria — SC-HARDEN-001..SC-HARDEN-024 together cover the SP-003 sidecar contract preservation + the kill-9 recovery completion + the failures resource read + the four-tier cascade + the constitutional grep + the empirical latency measurements.
+- [x] No implementation details leak into specification — verified by re-read. Identifiers like `flock`, `setTimeout/clearTimeout`, `BEGIN IMMEDIATE`, `INSERT OR IGNORE`, `runTool` appear only at the binding points where the constitutional principle or pre-flight fact requires them. The spec is otherwise behavior-focused.
+
+## Constitution Compliance (cross-cutting, non-template)
+
+- [x] **Principle I (Local-First, No Egress)** — SP-006 introduces ZERO new IO endpoints. Recovery scanner reads `Paths.telemetry()` (local disk). Failures resource reads `Paths.failed()` sidecars (local disk). Tier 0/1 read SQLite (in-process). Tier 2 reads `Paths.data() + '/CATALOG.md'` (local disk). Tier 3 invokes `runTool('grep', ...)` against `Paths.docs()` (local disk). NO HTTP. NO non-localhost destinations. Telemetry never includes body content nor raw query text (SC-HARDEN-024 inherited from SP-005 SC-RETRIEVAL-016 via SHA-256 query hashing).
+- [x] **Principle II (User Curates, LLM Classifies Metadata)** — SP-006 does NOT touch body files. The CATALOG.md generator writes a flat file at `Paths.data() + '/CATALOG.md'`, NOT a body file. Recovery scanner does not modify body files. Tier 3 grep READS body files (read-only). No new LLM-generated body content introduced.
+- [x] **Principle III (Substrate, Not Surface)** — FR-HARDEN-024 commits to ZERO new MCP mutation surfaces. The new `corpus://failures` resource is read-only by construction (`no-writes-from-resource-handlers` ESLint rule scoped). Recovery scanner is library-level (triggered by daemon startup, NOT MCP-exposed). CATALOG.md generator is library-level. The existing `corpus.find` tool is extended internally (tier cascade) but its surface (input/output shape) is preserved with an additive `tier_used` field per SearchHit.
+- [x] **Principle IV (Knowledge, Not Memory; Single-User, Single-Machine)** — SP-006 reads/writes one local SQLite + reads local body files + reads/writes `Paths.failed()` sidecars + reads/writes `Paths.data() + '/CATALOG.md'`. No SaaS, no cross-machine sync, no permissions, no roles. Assumption explicit.
+- [x] **Principle V (Schema-Enforced Structured Output)** — FR-HARDEN-009 + FR-HARDEN-010 + FR-HARDEN-017 bind FailuresQuery / FailuresResourceResponse / FailureEntry / SearchHit `tier_used` to Zod schemas; defense-in-depth validation at both input and output boundaries of the failures resource. The recovery scanner's parsed telemetry events are Zod-validated via the existing discriminated union. The SP-003 sidecar shape is consumed READ-ONLY through Zod-validated FailureEntryZodSchema.
+- [x] **Principle VI (One Pipeline, Two Policies)** — The recovery scanner's re-queue path invokes the SAME `ingestStage` / `classifyStage` / `embedStage` / `indexStage` / `edgesBuildStage` functions that the daemon hook chain and CLI invocations use; recovery uses `batchPolicy` per Decision M. One pipeline, two policies — preserved.
+- [x] **Principle VII (Cancellable, Bounded IO)** — FR-HARDEN-007 + FR-HARDEN-016 + FR-HARDEN-020 bind AbortSignal propagation through the recovery scanner + each tier-fallthrough retriever + the failures resource handler; the aggregate tier budget is enforced via AbortController + setTimeout/clearTimeout (NEVER Promise.race(setTimeout) — Constitution VII forbidden pattern); SIGTERM → 2-second exit budget.
+- [x] **Principle VIII (Atomic Writes & Transactional Index Updates)** — SP-006 introduces ZERO new SQL writes inside index transactions. The CATALOG.md append happens AFTER the SP-005 SQL transaction commits (post-COMMIT) — flat-file mirror in the same category as the SP-004 body-file frontmatter rewrite. The recovery scanner re-queues into the EXISTING SP-005 index-persister (preserving the Constitution VIII transactional contract). The failures resource is read-only. The tier cascade is read-only.
+- [x] **Principle IX (Concurrency-Safe Shared State)** — FR-HARDEN-001 + FR-HARDEN-006 bind `Paths.drainLock()` acquisition by the recovery scanner BEFORE reading the telemetry log AND before re-queueing work; concurrent CLI invocations during recovery emit `pipeline.lock_contention` and exit 0 (FR-INGEST-011 / FR-CLASSIFY-015 / FR-RETRIEVAL-018 contract preserved across the new recovery surface). Read paths (`corpus://failures`, tier cascade) are NOT gated by the drain-lock (Constitution III: substrate reads are non-blocking).
+- [x] **Principle X (Idempotent Pipeline Transitions)** — FR-HARDEN-002 + FR-HARDEN-003 bind the recovery scanner's re-queue path to the existing idempotency contracts (classify / embed / index / edges-build); recovery is itself idempotent — re-running produces the same orphan set; the re-queued work's underlying transitions are no-ops on second pass; the CATALOG.md regeneration via `corpus reindex` is idempotent.
+- [x] **Principle XI (Library/CLI Boundary)** — FR-HARDEN-021 + SC-HARDEN-018 lint commits to zero `process.exit` in SP-006 library packages.
+- [x] **Principle XII (Subprocess Hygiene)** — FR-HARDEN-023 + SC-HARDEN-019 lint commits to exactly ONE subprocess invocation in SP-006 source: the Tier 3 `runTool('grep', args[], opts)` call. Arg array (never a string-formed shell command). The `<pattern>` is escaped for BRE; the path is a literal `Paths.docs()` value.
+- [x] **Principle XIII (Telemetry-or-Die)** — FR-HARDEN-005 + FR-HARDEN-019 bind ≥ 14 new SP-006 event classes (9 recovery.* + 1 failures.sidecar_parse_failed + 4 search.tier_* + 1 updated search.completed); every catch block in SP-006 source emits a telemetry event before returning or re-throwing (existing AST-level lint covers SP-006). Recovery telemetry never carries body content; query strings are SHA-256-hashed per SP-005 FR-RETRIEVAL-023 (inherited).
+- [x] **Principle XIV (XDG Paths via Single Resolver)** — FR-HARDEN-022 + SC-HARDEN-017 lint commits to zero writes outside `Paths.*`. SP-006 reuses existing getters; ZERO new XDG base. The `paths-from-resolver-only` ESLint rule covers SP-006 source.
+- [x] **Principle XV (Dynamic Taxonomy with User-Reviewed Promotion)** — SP-006 does NOT touch `taxonomy_terms` (SP-004-owned). The classifier's vocabulary contract from SP-004 is preserved. The new `tier_used` enum on SearchHit is a TIER-name enum, not a taxonomy axis — explicitly out of scope of Principle XV.
+- [x] **Principle XVI (Validation Honesty)** — All per-tier latency numbers are TARGETS (§10.6 aspirational); SP-006 honest commitments are 5x the aspirational ceilings, measured empirically and reported in plan.md footnote. The `100-sidecar < 10 ms` failures-resource read claim is a target measured at implementation time. No cross-agent compatibility claims. No formal retrieval-eval harness as v1 success criterion (deferred to v1.5+ per NFR-009).
+
+## Anti-Scope Verification
+
+- [x] Spec contains NO new MCP mutation surfaces — verified. FR-HARDEN-024 explicit; `corpus://failures` is read-only by construction with `no-writes-from-resource-handlers` lint rule scoped.
+- [x] Spec contains NO `corpus failures clear` or `corpus failures retry` CLI commands — verified. Out of Scope explicit; operator manually rm's sidecars.
+- [x] Spec contains NO automated kill-9 testing in CI — verified. Recovery tests run on user's primary machine; CI tests cover the scanner logic against synthetic telemetry fixtures, NOT actual SIGKILL injection.
+- [x] Spec contains NO recovery from SQLite-file corruption — verified. SP-006 recovery scope is process kills only.
+- [x] Spec contains NO retrieval-evaluation harness as a success criterion — verified. Constitution XVI / NFR-009 explicitly defer to v1.5+; quality is operator-judged in v1.
+- [x] Spec contains NO Tier 4+ retrievers — verified. §10.6 four-tier model is the architectural ceiling.
+- [x] Spec contains NO worker-pool parallelism for tier cascade — verified. v1 ships sequential cascade.
+- [x] Spec contains NO chunked-document embeddings — verified (inherited from SP-005 deferrals).
+- [x] Spec contains NO cross-encoder re-ranking — verified.
+- [x] Spec contains NO HNSW/LSH/ANN — verified.
+- [x] Spec contains NO embedding-model change auto-detection in recovery — verified.
+- [x] Spec contains NO user-facing recovery review UI — verified.
+- [x] Spec contains NO `corpus://recovery` MCP resource — verified.
+- [x] Spec contains NO sidecar auto-deletion — verified.
+- [x] Spec contains NO PRD-defined CATALOG.md format extensions — verified.
+- [x] Spec contains NO cross-agent compatibility claims — verified.
+
+## Notes
+
+- Spec uses FR-HARDEN-NNN numbering (consistent with SP-002's FR-NNN, SP-003's FR-INGEST-NNN, SP-004's FR-CLASSIFY-NNN, SP-005's FR-RETRIEVAL-NNN per-spec numbering convention).
+- Plan-stage decisions deliberately resolved (not flagged as spec-level ambiguities): (a) recovery detection algorithm = reverse-line iterator over telemetry JSONL bounded by daemon.started marker, (b) resumability matrix = stage-keyed (ingest conditional / classify-embed-index-edges all resumable), (c) failures resource URI = `?stage=&since=&limit=&offset=` with limit-default-50 hard-cap-1000, (d) tier-fallthrough trigger = `[search].min_results` default 3, (e) per-tier latency budgets per §10.6 verbatim (TARGETS not guarantees per Constitution XVI), (f) recovery + drain-lock coordination via `Paths.drainLock()` flock acquire-release, (g) CATALOG.md generation at SP-005 index-stage post-COMMIT (additive flat-file mirror), (h) fs-grep via `runTool('grep', args[], opts)` per Constitution XII, (i) `schema_version: 1` for future-proofing, (j) failures-resource read latency bounded by sidecar count × parse cost (< 100 ms p95 at 1000-sidecar backlog), (k) `tier_used` enum field on SearchHit additive over SP-005, (l) CATALOG.md write timing post-SQL-COMMIT, (m) recovery scan policy = `batchPolicy`, (n) recovery sidecar uniqueness = per-file (both `.error.json` and `.recovery.error.json` are surfaced). All resolved in `research.md` Decisions A through N.
+- `corpus://failures` glob pattern: `Paths.failed() + '/*.error.json'` AND `Paths.failed() + '/*.recovery.error.json'` (both surfaced uniformly via the same FailureEntryZodSchema).
+- `documents_fts` / `documents_vec` / `edges` PRIMARY KEYs: unchanged from SP-005. SP-006 introduces ZERO new SQL constraints.
+- This checklist marks every item PASS based on internal review. `/speckit-clarify` is OPTIONAL — the pre-resolved design decisions in the dispatch prompt cover the historically-ambiguous areas. Recommend proceeding directly to `/speckit-tasks` (Phase 1 prereq verification → Phase 2 foundational PREREQs → Phase 3 US1 P1 recovery → Phase 4 US2 P1 failures resource → Phase 5 US3 P2 tier fallthrough → Phase 6 lint + Constitution gate → Phase 7 polish/final commit). Build is pre-planned as a SINGLE Engineer-agent dispatch per `feedback-build-tier-sizing-rule` (production surface < 2000 LOC threshold; total surface ~3000-3600 LOC across ~30 files including tests + fixtures).
+
+---
+
+## Implementation outcomes (post-/speckit-implement)
+
+*To be populated post-implementation; mirrors the SP-005 implementation-outcomes table.*

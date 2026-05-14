@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-88888888",
+  "stage": "index",
+  "error_code": "persist_failed",
+  "message": "atomic FTS5+vec INSERT transaction rollback (vec dimension mismatch)",
+  "timestamp": "2026-05-13T08:07:08Z",
+  "retriable": true
+}

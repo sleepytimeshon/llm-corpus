@@ -21,3 +21,6 @@ export * from './embed-stage.js';
 export * from './index-stage.js';
 export * from './edges-build-stage.js';
 export * from './retrieval-orchestrator.js';
+// SP-006 additions
+export * from './recovery-resumability.js';
+export * from './recovery-scanner.js';

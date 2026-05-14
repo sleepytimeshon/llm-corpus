@@ -35,6 +35,7 @@ import {
   ClassifyCircuitBreaker,
   acquireDrainLock,
   retrievalOrchestrator,
+  runRecoveryScan,
 } from '@llm-corpus/pipeline';
 import {
   loadEstablishedVocabulary,
@@ -120,6 +121,35 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
   // Ensure XDG dirs exist.
   for (const dir of [Paths.inbox(), Paths.pending(), Paths.processed(), Paths.failed(), Paths.docsStore()]) {
     fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // SP-006 FR-HARDEN-001 — emit daemon.started session boundary BEFORE the
+  // recovery scan runs. The scan uses this marker as its window bound.
+  try {
+    await emitTelemetry({
+      event: 'daemon.started',
+      timestamp: new Date().toISOString(),
+      severity: 'info',
+      outcome: 'success',
+      pid: process.pid,
+    });
+  } catch {
+    // Best-effort; telemetry must not crash startup.
+  }
+
+  // SP-006 FR-HARDEN-001 — run the recovery scan BEFORE activating the
+  // inbox watcher / classify-hook / embed-hook chains. Failure does NOT
+  // prevent daemon startup (warning logged; daemon continues with empty
+  // recovery state). The scanner emits its own observability events.
+  try {
+    await runRecoveryScan(
+      { policy: batchPolicy, paths: Paths, logger: { warn: (m: string) => process.stderr.write(`daemon: recovery: ${m}\n`) } },
+      signal,
+    );
+  } catch (caught) {
+    process.stderr.write(
+      `daemon: recovery scan failed (continuing): ${(caught as Error).message}\n`,
+    );
   }
 
   // Coalescing drain trigger: any 'add' event sets a pending flag; the

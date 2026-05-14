@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-11111111",
+  "stage": "validation",
+  "error_code": "filename_sanity_failed",
+  "message": "null byte detected in filename",
+  "timestamp": "2026-05-13T08:00:01Z",
+  "retriable": false
+}

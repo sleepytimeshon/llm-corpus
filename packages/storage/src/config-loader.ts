@@ -46,6 +46,14 @@ const DEFAULT_INGEST_PER_DOC_TIMEOUT_MS = 60_000;
 const DEFAULT_INGEST_BATCH_PER_DOC_TIMEOUT_MS = 300_000;
 const INGEST_TIMEOUT_MS_MIN = 1000;
 
+// SP-006 [search] section defaults + bounds.
+const DEFAULT_SEARCH_MIN_RESULTS = 3;
+const SEARCH_MIN_RESULTS_MIN = 0;
+const SEARCH_MIN_RESULTS_MAX = 100;
+const DEFAULT_SEARCH_TIER_TOTAL_BUDGET_MS = 600;
+const SEARCH_TIER_TOTAL_BUDGET_MS_MIN = 50;
+const SEARCH_TIER_TOTAL_BUDGET_MS_MAX = 30_000;
+
 /**
  * Load resource-related config from `Paths.config()/config.toml`.
  *
@@ -187,6 +195,84 @@ function defaultIngestConfig(): IngestConfig {
     maxFileSizeMb: DEFAULT_INGEST_MAX_FILE_SIZE_MB,
     perDocTimeoutMs: DEFAULT_INGEST_PER_DOC_TIMEOUT_MS,
     batchPerDocTimeoutMs: DEFAULT_INGEST_BATCH_PER_DOC_TIMEOUT_MS,
+  };
+}
+
+/**
+ * SP-006 [search] config knobs. Reads `[search].min_results` and
+ * `[search].tier_total_budget_ms` from config.toml; unknown keys inside
+ * `[search]` are ignored (forward-compat).
+ *
+ * Defaults applied when:
+ *   - The file does not exist (ENOENT)
+ *   - The `[search]` section is missing
+ *   - Any individual key is missing
+ *
+ * Throws ConfigurationError when:
+ *   - `min_results` is not an integer in [0, 100]
+ *   - `tier_total_budget_ms` is not an integer in [50, 30_000]
+ */
+export interface SearchConfig {
+  /** Min results across the tier cascade before falling through. */
+  min_results: number;
+  /** Aggregate cascade wall-clock budget in milliseconds. */
+  tier_total_budget_ms: number;
+}
+
+export function loadSearchConfig(): SearchConfig {
+  const configPath = path.join(Paths.config(), 'config.toml');
+  let raw: string;
+  try {
+    raw = fs.readFileSync(configPath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return defaultSearchConfig();
+    }
+    throw err;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = TOML.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    throw new ConfigurationError({
+      key: 'config.toml',
+      reason: `failed to parse TOML: ${(err as Error).message ?? String(err)}`,
+    });
+  }
+
+  const searchSection = parsed['search'] as
+    | {
+        min_results?: unknown;
+        tier_total_budget_ms?: unknown;
+      }
+    | undefined;
+  if (!searchSection) {
+    return defaultSearchConfig();
+  }
+
+  const minResults = validateInt(
+    searchSection.min_results,
+    'search.min_results',
+    DEFAULT_SEARCH_MIN_RESULTS,
+    SEARCH_MIN_RESULTS_MIN,
+    SEARCH_MIN_RESULTS_MAX,
+  );
+  const tierTotalBudgetMs = validateInt(
+    searchSection.tier_total_budget_ms,
+    'search.tier_total_budget_ms',
+    DEFAULT_SEARCH_TIER_TOTAL_BUDGET_MS,
+    SEARCH_TIER_TOTAL_BUDGET_MS_MIN,
+    SEARCH_TIER_TOTAL_BUDGET_MS_MAX,
+  );
+
+  return { min_results: minResults, tier_total_budget_ms: tierTotalBudgetMs };
+}
+
+function defaultSearchConfig(): SearchConfig {
+  return {
+    min_results: DEFAULT_SEARCH_MIN_RESULTS,
+    tier_total_budget_ms: DEFAULT_SEARCH_TIER_TOTAL_BUDGET_MS,
   };
 }
 

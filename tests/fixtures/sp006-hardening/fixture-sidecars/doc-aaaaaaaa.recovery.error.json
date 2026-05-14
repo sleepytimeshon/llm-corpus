@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-aaaaaaaa",
+  "stage": "unrecoverable_orphan",
+  "error_code": "unrecoverable_orphan",
+  "message": "ingest file deleted during kill window — inbox path no longer resolves",
+  "timestamp": "2026-05-13T09:30:00Z",
+  "retriable": false
+}

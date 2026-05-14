@@ -30,8 +30,12 @@ import {
   acquireDrainLock,
   type Policy,
 } from '@llm-corpus/pipeline';
-import { openIndexReadWrite } from '@llm-corpus/storage';
+import {
+  openIndexReadWrite,
+  regenerateCatalogFromDb,
+} from '@llm-corpus/storage';
 import { EmbeddingAdapter } from '@llm-corpus/inference';
+import type { Database as DatabaseType } from 'better-sqlite3';
 
 export interface ReindexSummary {
   indexed: number;
@@ -39,6 +43,8 @@ export interface ReindexSummary {
   skipped: number;
   dryRun: boolean;
   lockContended: boolean;
+  /** SP-006 — CATALOG.md regenerated row count (0 when --no-catalog). */
+  catalogLines?: number;
 }
 
 export interface ReindexArgs {
@@ -46,6 +52,8 @@ export interface ReindexArgs {
   embeddingModel?: string;
   embeddingEndpoint?: string;
   embeddingExpectedDim?: number;
+  /** SP-006 T054 — regenerate Paths.data()/CATALOG.md after backfill (default true). */
+  regenerateCatalog?: boolean;
 }
 
 export interface ReindexCommandInput {
@@ -61,6 +69,8 @@ export interface ReindexCommandInput {
 export function parseReindexArgs(argv: readonly string[]): ReindexArgs {
   return {
     dryRun: argv.includes('--dry-run'),
+    // SP-006 T054 — default true; --no-catalog opts out (used by ops tests).
+    regenerateCatalog: !argv.includes('--no-catalog'),
   };
 }
 
@@ -93,7 +103,7 @@ export async function runReindexCommand(
   }
   const lock = lockResult.value;
 
-  let db;
+  let db: DatabaseType;
   try {
     db = openIndexReadWrite();
   } catch (caught) {
@@ -172,6 +182,36 @@ export async function runReindexCommand(
       }
     }
   } finally {
+    // SP-006 T054: regenerate CATALOG.md from the canonical documents table
+    // after the backfill loop. Idempotent — re-running on the same DB
+    // produces the same lines. Failures are logged + swallowed; the SQL
+    // index backfill is the transactional unit (Constitution VIII).
+    if (
+      args.dryRun !== true &&
+      args.regenerateCatalog !== false &&
+      !signal.aborted
+    ) {
+      try {
+        const r = await regenerateCatalogFromDb(db, signal);
+        summary.catalogLines = r.written;
+        input.onProgress?.(`CATALOG.md regenerated (${r.written} lines)`);
+      } catch (caught) {
+        const message =
+          caught instanceof Error ? caught.message : String(caught);
+        input.onProgress?.(`CATALOG.md regeneration failed: ${message}`);
+        await emitTelemetry({
+          event: 'search.tier_failed',
+          timestamp: new Date().toISOString(),
+          severity: 'warn',
+          outcome: 'failed',
+          tier: 'catalog-grep',
+          error_code: 'catalog_regenerate_failed',
+          duration_ms: 0,
+        }).catch(() => {
+          /* never crash on telemetry */
+        });
+      }
+    }
     try {
       db.close();
     } catch {

@@ -1,6 +1,6 @@
 # llm-corpus Session State
 
-**Last updated:** 2026-05-13 (SP-005 merged — install-ready milestone reached)
+**Last updated:** 2026-05-14 (SP-006 implementation complete — PR open against main)
 **Authoritative:** this file. Memory pointers in ~/.claude reference here.
 
 ## Current status
@@ -11,10 +11,21 @@
 | SP-002 | 4 read-only MCP resources (manifest / taxonomy / recent / docs/{id}) | ✅ Merged (PR #3) |
 | SP-003 | Ingest pipeline — inbox watcher → validation → hash → normalize → persist | ✅ Merged 2026-05-12 (PR #11; daemon fix #12) |
 | SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | ✅ Merged 2026-05-13 (PR #13, commit 33f233c) |
-| SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ **Merged 2026-05-13 (PR #14, commit 7592eb9)** |
-| SP-006 | Kill-9 survival + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ⏳ Production hardening (not blocking install/use) |
+| SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ Merged 2026-05-13 (PR #14, commit 7592eb9) |
+| SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | 🟡 **PR open against main** (2026-05-14) |
 
-**Branch:** `main` clean. SP-001 through SP-005 all merged.
+**Branch:** `006-hardening`. SP-001 through SP-005 merged on `main`; SP-006 PR pending review/merge.
+
+## SP-006 implementation summary (2026-05-14)
+
+- **Phase 2** — PREREQ contracts: Zod schemas for `FailureEntry` / `FailuresQuery` / `FailuresResourceResponse`; 14 SP-006 telemetry event classes (9 recovery.* + 1 failures.sidecar_parse_failed + 4 search.tier_*); 6 typed errors; extended PolicySchema with 7 SP-006 knobs; SearchHit.tier_used widened to enum.
+- **Phase 3** — `packages/pipeline/src/recovery-scanner.ts` + `recovery-resumability.ts` + sidecar writer; daemon startup hook fires BEFORE the inbox watcher.
+- **Phase 4** — `packages/storage/src/failures-resource-adapter.ts` + `packages/transport/src/failures-resource-handler.ts`; fifth MCP resource alongside SP-002's four. Engineer #5 added `emitResourceRead('corpus://failures', ...)` per SP-002 telemetry parity.
+- **Phase 5** — `packages/index/src/tier-orchestrator.ts` + `bm25-only-tier.ts` + `catalog-grep-tier.ts` + `fs-grep-tier.ts`; `packages/storage/src/catalog-md-generator.ts`; `corpus reindex --no-catalog` flag. Engineer #5 cutover: `packages/transport/src/corpus-find-tool.ts` now delegates to `runTieredSearch` (the cascade is LIVE in production-mode `corpus.find`).
+- **Phase 6** — ESLint custom rules verified covering all SP-006 paths (`no-process-exit-in-libs`, `paths-from-resolver-only`, `no-shell-string-exec`, `no-forbidden-network-imports`, `no-writes-from-resource-handlers`). Three new test files: `tests/lint-fixtures/sp006-constitutional-grep.test.ts`, `tests/lint-fixtures/sp006-no-mcp-mutation-surfaces.test.ts`, `tests/integration/sp006-telemetry-no-body-content.test.ts`.
+- **Phase 7** — `npm run build` 0, `npm run lint` 0, `npm run test` 878 passing / 5 skipped. Constitution Check 16/16 re-verified.
+
+**Deferred to post-merge polish PR:** T060–T063 (live pai-node01 p95 measurement), T064 (requirements.md outcome marking), T065 (CLAUDE.md SP-006 surface section), T066 (`.specify/feature.json` update).
 
 ## Install-ready milestone — REACHED
 

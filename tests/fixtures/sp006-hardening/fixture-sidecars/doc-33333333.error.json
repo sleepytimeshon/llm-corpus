@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-33333333",
+  "stage": "normalize",
+  "error_code": "normalize_failed",
+  "message": "PDF extraction returned empty body",
+  "timestamp": "2026-05-13T08:02:03Z",
+  "retriable": false
+}

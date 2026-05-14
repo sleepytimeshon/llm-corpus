@@ -18,3 +18,8 @@ export * from './confidence-adapter.js';
 export * from './edges-builder.js';
 export * from './fusion.js';
 export * from './search.js';
+// SP-006 additions — Tier 1/2/3 fallthrough cascade (US3 P2).
+export * from './bm25-only-tier.js';
+export * from './catalog-grep-tier.js';
+export * from './fs-grep-tier.js';
+export * from './tier-orchestrator.js';

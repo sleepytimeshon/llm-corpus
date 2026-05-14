@@ -83,6 +83,7 @@ export const ResourceUri = z.enum([
   'corpus://taxonomy',
   'corpus://recent',
   'corpus://docs/*', // template form — exact id lives in doc_id
+  'corpus://failures', // SP-006 — Phase 4 carry-forward (Engineer #5)
 ]);
 export type ResourceUriType = z.infer<typeof ResourceUri>;
 
@@ -730,13 +731,24 @@ export const SearchStartedEvent = z.object({
 });
 export type SearchStartedEventType = z.infer<typeof SearchStartedEvent>;
 
+// SP-006 PREREQ-002: tier_used widened from z.literal('hybrid') to the
+// four-tier enum so the SP-006 tier-orchestrator can label per-tier events
+// with the actual tier that produced them. SP-005 callers that emit
+// `tier_used: 'hybrid'` continue to validate.
+const Sp005TierUsedEnum = z.enum([
+  'hybrid',
+  'bm25-only',
+  'catalog-grep',
+  'fs-grep',
+]);
+
 export const SearchQueryEvent = z.object({
   event: z.literal('search.query'),
   timestamp: ISO8601,
   severity: Sp005Severity,
   outcome: Sp005Outcome,
   query_hash: Sp005QueryHash,
-  tier_used: z.literal('hybrid'),
+  tier_used: Sp005TierUsedEnum,
   result_count: z.number().int().nonnegative(),
   signals_used: z.array(Sp005SignalName),
   duration_ms: z.number().int().nonnegative(),
@@ -751,6 +763,11 @@ export const SearchCompletedEvent = z.object({
   query_hash: Sp005QueryHash,
   result_count: z.number().int().nonnegative(),
   duration_ms: z.number().int().nonnegative(),
+  // SP-006 PREREQ-002: tier_used + signals_used added per data-model Entity 4.
+  // Optional with defaults so SP-005 emitters that only set the legacy three
+  // fields continue to validate; SP-006-aware emitters populate them.
+  tier_used: Sp005TierUsedEnum.optional(),
+  signals_used: z.array(Sp005SignalName).optional(),
 });
 export type SearchCompletedEventType = z.infer<typeof SearchCompletedEvent>;
 
@@ -801,6 +818,241 @@ export const Sp005EdgesErrorCodeEnum = Sp005EdgesErrorCode;
 export type Sp005EdgesErrorCodeType = z.infer<typeof Sp005EdgesErrorCode>;
 export const Sp005SearchErrorCodeEnum = Sp005SearchErrorCode;
 export type Sp005SearchErrorCodeType = z.infer<typeof Sp005SearchErrorCode>;
+
+// --- SP-006 — Production-hardening event classes (14 additive variants) ----
+//
+// References:
+//   - specs/006-hardening/spec.md FR-HARDEN-005, FR-HARDEN-019
+//   - specs/006-hardening/data-model.md §"Entity 4" + §"Entity 5"
+//   - Constitution Principles I, V, IX, XIII
+//
+// Shared envelope: `event`, `timestamp`, `severity`, `outcome`. Discriminator
+// is `event` (consistent with SP-001..SP-005 union shape).
+//
+// Spec-drift note: SP-006 tasks.md T003/T010 said "13"; data-model.md plus
+// failures.sidecar_parse_failed enumerate 14. Implemented as 14.
+
+const Sp006Severity = z.enum(['info', 'warn', 'error']);
+const Sp006Outcome = z.enum([
+  'success',
+  'rejected',
+  'deduplicated',
+  'failed',
+  'aborted',
+]);
+const Sp006DocId = z.string().regex(/^doc-[0-9a-f]{8}$/);
+
+const Sp006RecoveryStage = z.enum([
+  'ingest',
+  'classify',
+  'embed',
+  'index',
+  'edges-build',
+]);
+
+const Sp006TierEnum = z.enum([
+  'hybrid',
+  'bm25-only',
+  'catalog-grep',
+  'fs-grep',
+]);
+
+const Sp006FromTier = z.enum(['hybrid', 'bm25-only', 'catalog-grep']);
+const Sp006ToTier = z.enum(['bm25-only', 'catalog-grep', 'fs-grep']);
+const Sp006SkippedTier = z.enum(['catalog-grep', 'fs-grep']);
+const Sp006BoundedMessage = z.string().max(1024);
+const Sp006SidecarPath = z.string().max(4096);
+
+// ---- 9 recovery.* events ----
+
+export const RecoveryScanStartedEvent = z.object({
+  event: z.literal('recovery.scan_started'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  daemon_session_start_ts: ISO8601.nullable(),
+});
+export type RecoveryScanStartedEventType = z.infer<
+  typeof RecoveryScanStartedEvent
+>;
+
+export const RecoveryScanCompletedEvent = z.object({
+  event: z.literal('recovery.scan_completed'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  duration_ms: z.number().int().nonnegative(),
+  resumed_count: z.number().int().nonnegative(),
+  aborted_count: z.number().int().nonnegative(),
+  daemon_session_start_ts: ISO8601.nullable(),
+});
+export type RecoveryScanCompletedEventType = z.infer<
+  typeof RecoveryScanCompletedEvent
+>;
+
+export const RecoveryScanSkippedEvent = z.object({
+  event: z.literal('recovery.scan_skipped'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  reason: z.enum(['no_prior_session', 'lock_contention']),
+});
+export type RecoveryScanSkippedEventType = z.infer<
+  typeof RecoveryScanSkippedEvent
+>;
+
+export const RecoveryScanReentryEvent = z.object({
+  event: z.literal('recovery.scan_reentry'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  prior_scan_start_ts: ISO8601,
+});
+export type RecoveryScanReentryEventType = z.infer<
+  typeof RecoveryScanReentryEvent
+>;
+
+export const RecoveryOrphanFoundEvent = z.object({
+  event: z.literal('recovery.orphan_found'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  doc_id: Sp006DocId.nullable(),
+  stage: Sp006RecoveryStage,
+  started_ts: ISO8601,
+});
+export type RecoveryOrphanFoundEventType = z.infer<
+  typeof RecoveryOrphanFoundEvent
+>;
+
+export const RecoveryResumedEvent = z.object({
+  event: z.literal('recovery.resumed'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  doc_id: Sp006DocId,
+  stage: Sp006RecoveryStage,
+});
+export type RecoveryResumedEventType = z.infer<typeof RecoveryResumedEvent>;
+
+export const RecoveryAbortedEvent = z.object({
+  event: z.literal('recovery.aborted'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  doc_id: Sp006DocId.nullable(),
+  stage: Sp006RecoveryStage,
+  reason: Sp006BoundedMessage,
+});
+export type RecoveryAbortedEventType = z.infer<typeof RecoveryAbortedEvent>;
+
+export const RecoveryTelemetryParseFailedEvent = z.object({
+  event: z.literal('recovery.telemetry_parse_failed'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  line_offset: z.number().int().nonnegative(),
+  error: Sp006BoundedMessage,
+});
+export type RecoveryTelemetryParseFailedEventType = z.infer<
+  typeof RecoveryTelemetryParseFailedEvent
+>;
+
+export const RecoveryAbortedScanEvent = z.object({
+  event: z.literal('recovery.aborted_scan'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  reason: z.enum(['abort_signal', 'timeout']),
+});
+export type RecoveryAbortedScanEventType = z.infer<
+  typeof RecoveryAbortedScanEvent
+>;
+
+// ---- 1 failures.sidecar_parse_failed event ----
+
+export const FailuresSidecarParseFailedEvent = z.object({
+  event: z.literal('failures.sidecar_parse_failed'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  sidecar_path: Sp006SidecarPath,
+  error: Sp006BoundedMessage,
+});
+export type FailuresSidecarParseFailedEventType = z.infer<
+  typeof FailuresSidecarParseFailedEvent
+>;
+
+// ---- 4 search.tier_* events ----
+
+export const SearchTierFallthroughEvent = z.object({
+  event: z.literal('search.tier_fallthrough'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  from_tier: Sp006FromTier,
+  to_tier: Sp006ToTier,
+  reason: z.enum(['below_min_results', 'tier_failed']),
+  hits_before_fallthrough: z.number().int().nonnegative(),
+});
+export type SearchTierFallthroughEventType = z.infer<
+  typeof SearchTierFallthroughEvent
+>;
+
+export const SearchTierSkippedEvent = z.object({
+  event: z.literal('search.tier_skipped'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  tier: Sp006SkippedTier,
+  reason: z.enum(['catalog_missing', 'grep_unavailable']),
+});
+export type SearchTierSkippedEventType = z.infer<typeof SearchTierSkippedEvent>;
+
+export const SearchTierFailedEvent = z.object({
+  event: z.literal('search.tier_failed'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  tier: Sp006TierEnum,
+  errno: z.string().max(32).optional(),
+  error_code: z.string().max(128).optional(),
+  duration_ms: z.number().int().nonnegative(),
+});
+export type SearchTierFailedEventType = z.infer<typeof SearchTierFailedEvent>;
+
+export const SearchTierBudgetExceededEvent = z.object({
+  event: z.literal('search.tier_budget_exceeded'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  budget_ms: z.number().int().nonnegative(),
+  actual_ms: z.number().int().nonnegative(),
+  tiers_attempted: z.array(Sp006TierEnum),
+  final_hit_count: z.number().int().nonnegative(),
+});
+export type SearchTierBudgetExceededEventType = z.infer<
+  typeof SearchTierBudgetExceededEvent
+>;
+
+// Re-export the SP-006 tier enum so downstream packages bind to it.
+export const Sp006TierEnumSchema = Sp006TierEnum;
+export type Sp006TierEnumType = z.infer<typeof Sp006TierEnum>;
+
+// ---- 1 daemon.started session-boundary marker ----
+//
+// SP-006 FR-HARDEN-001 / FR-HARDEN-004: the recovery scanner uses
+// `daemon.started` as the prior-session boundary. Emitted by the daemon's
+// `startDaemon()` entry point BEFORE the recovery scanner runs. Bounded
+// payload: just the pid for diagnostics.
+export const DaemonStartedEvent = z.object({
+  event: z.literal('daemon.started'),
+  timestamp: ISO8601,
+  severity: Sp006Severity,
+  outcome: Sp006Outcome,
+  pid: z.number().int().nonnegative(),
+});
+export type DaemonStartedEventType = z.infer<typeof DaemonStartedEvent>;
 
 // --- Discriminated union (renamed in SP-002 — additive) ---
 
@@ -859,6 +1111,22 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   SearchDegradedEvent,
   SearchErrorEvent,
   SearchSnippetFetchFailedEvent,
+  // SP-006 additions (14 production-hardening event classes):
+  RecoveryScanStartedEvent,
+  RecoveryScanCompletedEvent,
+  RecoveryScanSkippedEvent,
+  RecoveryScanReentryEvent,
+  RecoveryOrphanFoundEvent,
+  RecoveryResumedEvent,
+  RecoveryAbortedEvent,
+  RecoveryTelemetryParseFailedEvent,
+  RecoveryAbortedScanEvent,
+  FailuresSidecarParseFailedEvent,
+  SearchTierFallthroughEvent,
+  SearchTierSkippedEvent,
+  SearchTierFailedEvent,
+  SearchTierBudgetExceededEvent,
+  DaemonStartedEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 

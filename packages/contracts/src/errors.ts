@@ -937,3 +937,198 @@ export class IndexPersistError extends RetrievalError {
     this.data = data;
   }
 }
+
+// ============================================================================
+// SP-006 — Production-hardening typed errors (PREREQ-003)
+// ============================================================================
+//
+// References:
+//   - specs/006-hardening/spec.md FR-HARDEN-021
+//   - Constitution Principle XI (Library/CLI Boundary)
+//
+// 6 typed errors — RecoveryScanError base + RecoveryOrphanUnresumableError +
+// 4 standalone errors. None invoke process.exit; all are throwable.
+
+export type RecoveryScanReason =
+  | 'lock_contention'
+  | 'no_prior_session'
+  | 'telemetry_unreadable'
+  | 'aborted'
+  | 'timeout';
+
+/**
+ * Base class for the SP-006 recovery-scanner typed errors. Subclasses inherit
+ * so callers can pattern-match on `instanceof RecoveryScanError` or on the
+ * specific subclass (e.g., RecoveryOrphanUnresumableError).
+ */
+export class RecoveryScanError extends Error {
+  readonly code = 'RECOVERY_SCAN_ERROR' as const;
+  override readonly name: string = 'RecoveryScanError';
+  readonly data: {
+    reason?: RecoveryScanReason | string;
+    message?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      reason?: RecoveryScanReason | string;
+      message?: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Recovery scan error${data.reason ? ` (${data.reason})` : ''}${
+        data.message ? `: ${data.message}` : ''
+      }`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * The recovery scanner classified an orphan as non-resumable (e.g., the
+ * ingest inbox file was deleted during the kill window). Writes a
+ * `.recovery.error.json` sidecar at Paths.failed() and surfaces this typed
+ * error to the recovery orchestrator.
+ */
+export class RecoveryOrphanUnresumableError extends RecoveryScanError {
+  override readonly name = 'RecoveryOrphanUnresumableError';
+  override readonly data: {
+    doc_id: string | null;
+    stage: 'ingest' | 'classify' | 'embed' | 'index' | 'edges-build';
+    reason: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      doc_id: string | null;
+      stage: 'ingest' | 'classify' | 'embed' | 'index' | 'edges-build';
+      reason: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super({ ...data }, cause);
+    this.data = data;
+  }
+}
+
+/**
+ * The corpus://failures resource adapter or handler encountered an error
+ * (malformed sidecar, glob failure, validation error). Retriable when the
+ * `error_code` indicates a transient condition.
+ */
+export class FailuresResourceError extends Error {
+  readonly code = 'FAILURES_RESOURCE_ERROR' as const;
+  override readonly name = 'FailuresResourceError';
+  readonly data: {
+    error_code: string;
+    message: string;
+    sidecar_path?: string;
+    retriable?: boolean;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: string;
+      message: string;
+      sidecar_path?: string;
+      retriable?: boolean;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Failures resource error (${data.error_code}): ${data.message}${
+        data.sidecar_path ? ` at ${data.sidecar_path}` : ''
+      }`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * The tier-fallthrough orchestrator encountered an unrecoverable error
+ * (budget exceeded with no partial set, all tiers failed, etc.).
+ */
+export class TierFallthroughError extends Error {
+  readonly code = 'TIER_FALLTHROUGH_ERROR' as const;
+  override readonly name = 'TierFallthroughError';
+  readonly data: {
+    tier: 'hybrid' | 'bm25-only' | 'catalog-grep' | 'fs-grep';
+    reason: 'budget_exceeded' | 'all_tiers_failed' | 'aborted' | string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      tier: 'hybrid' | 'bm25-only' | 'catalog-grep' | 'fs-grep';
+      reason: 'budget_exceeded' | 'all_tiers_failed' | 'aborted' | string;
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Tier fallthrough error (tier=${data.tier}, reason=${data.reason}): ${data.message}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * The Tier 2 CATALOG.md flat-file is missing from Paths.data(). The
+ * tier-orchestrator emits `search.tier_skipped` and falls through to Tier 3.
+ */
+export class CatalogMissingError extends Error {
+  readonly code = 'CATALOG_MISSING' as const;
+  override readonly name = 'CatalogMissingError';
+  readonly data: {
+    catalog_path: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: { catalog_path: string; [key: string]: unknown }) {
+    super(`CATALOG.md not found at ${data.catalog_path}`);
+    this.data = data;
+  }
+}
+
+/**
+ * The Tier 3 fs-grep subprocess failed (grep not found, ENOENT,
+ * non-zero exit). Surfaces as `search.tier_failed` telemetry.
+ */
+export class GrepSubprocessError extends Error {
+  readonly code = 'GREP_SUBPROCESS_ERROR' as const;
+  override readonly name = 'GrepSubprocessError';
+  readonly data: {
+    errno: string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: { errno: string; message: string; [key: string]: unknown },
+    cause?: unknown,
+  ) {
+    super(`grep subprocess failed (errno=${data.errno}): ${data.message}`);
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}

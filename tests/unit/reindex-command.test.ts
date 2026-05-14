@@ -74,8 +74,19 @@ function mockEmbedder(): EmbeddingAdapter {
 
 describe('reindex-command', () => {
   it('parseReindexArgs detects --dry-run', () => {
-    expect(parseReindexArgs([])).toEqual({ dryRun: false });
-    expect(parseReindexArgs(['--dry-run'])).toEqual({ dryRun: true });
+    // SP-006 T054: regenerateCatalog defaults to true; --no-catalog opts out.
+    expect(parseReindexArgs([])).toEqual({
+      dryRun: false,
+      regenerateCatalog: true,
+    });
+    expect(parseReindexArgs(['--dry-run'])).toEqual({
+      dryRun: true,
+      regenerateCatalog: true,
+    });
+    expect(parseReindexArgs(['--no-catalog'])).toEqual({
+      dryRun: false,
+      regenerateCatalog: false,
+    });
   });
 
   it('backfills documents_fts + vec for classified-but-unindexed rows', async () => {

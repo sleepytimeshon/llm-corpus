@@ -1,0 +1,8 @@
+{
+  "doc_id": "doc-77777777",
+  "stage": "embed",
+  "error_code": "embedding_unavailable",
+  "message": "ECONNREFUSED connecting to http://localhost:11434/api/embeddings",
+  "timestamp": "2026-05-13T08:06:07Z",
+  "retriable": true
+}

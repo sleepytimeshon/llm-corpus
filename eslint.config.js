@@ -113,8 +113,9 @@ export default [
   },
 
   // SC-010 — read-only enforcement on the MCP resource-handler call graph.
-  // Scope: SP-002 resource-handler source files + their storage adapters.
-  // T007 ships the rule as a no-op skeleton; T067 fills the AST scan.
+  // Scope: SP-002 resource-handler source files + their storage adapters,
+  // EXTENDED in SP-006 (T015) to cover the corpus://failures handler + adapter.
+  // T007 shipped the rule as a no-op skeleton; T067 filled the AST scan.
   {
     files: [
       'packages/transport/src/resource-manifest-handler.ts',
@@ -125,6 +126,9 @@ export default [
       'packages/storage/src/taxonomy-adapter.ts',
       'packages/storage/src/recent-adapter.ts',
       'packages/storage/src/document-adapter.ts',
+      // SP-006 additions:
+      'packages/transport/src/failures-resource-handler.ts',
+      'packages/storage/src/failures-resource-adapter.ts',
     ],
     plugins: { 'llm-corpus': localRulesPlugin },
     rules: {
