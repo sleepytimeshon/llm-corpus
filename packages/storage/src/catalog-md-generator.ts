@@ -200,12 +200,20 @@ export async function regenerateCatalogFromDb(
   // Use a sibling temp file under Paths.data() for the same-FS rename.
   const tmpPath = `${target}.tmp.${process.pid}`;
   await fsp.writeFile(tmpPath, content, { encoding: 'utf8' });
-  const fh = await fsp.open(tmpPath, 'r+');
   try {
-    await fh.sync();
-  } finally {
-    await fh.close();
+    const fh = await fsp.open(tmpPath, 'r+');
+    try {
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    await fsp.rename(tmpPath, target);
+  } catch (err) {
+    // Clean up the temp file on any failure (fsync, rename, etc.) so
+    // repeated failures don't accumulate orphaned *.tmp.<pid> files in
+    // Paths.data().
+    await fsp.unlink(tmpPath).catch(() => undefined);
+    throw err;
   }
-  await fsp.rename(tmpPath, target);
   return { written: rows.length };
 }

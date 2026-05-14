@@ -181,7 +181,11 @@ export async function runRecoveryScan(
 
   try {
     // 1. Acquire the drain lock. On contention, emit scan_skipped and exit.
-    const lockResult = acquireDrainLock({ signal });
+    // The lock's auto-release is wired to innerController.signal (not the
+    // outer signal) so the lock releases on EITHER outer abort OR the
+    // recoveryScanTimeoutMs internal timeout — otherwise the lock would
+    // persist after a timeout and stall subsequent drains.
+    const lockResult = acquireDrainLock({ signal: innerController.signal });
     if (!lockResult.ok) {
       result.skipped = true;
       result.skipReason = 'lock_contention';

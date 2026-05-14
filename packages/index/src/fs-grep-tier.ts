@@ -90,11 +90,12 @@ export async function runFsGrepTier(input: FsGrepInput): Promise<TierResult> {
 
   // Use the docsStore root if present (SP-005 canonical layout); else fall
   // back to Paths.docs() which is the umbrella.
-  const grepTarget = Paths.docsStore();
+  let grepTarget = Paths.docsStore();
   try {
     await fsp.stat(grepTarget);
   } catch {
     // docsStore may not exist on legacy corpora; fall back to docs() root.
+    grepTarget = Paths.docs();
   }
 
   const pattern = escapeBre(queryTrimmed);
