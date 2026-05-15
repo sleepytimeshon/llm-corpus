@@ -62,7 +62,11 @@ export interface DaemonOptions {
   controller?: AbortController;
   /** Optional: disable the SP-004 classify hook (tests / pre-Ollama setups). */
   classifyEnabled?: boolean;
-  /** Optional: model name for the classifier. Default qwen3.5:9b. */
+  /** Optional: model name for the classifier. Default qwen3:8b (the
+   * canonical SP-004 / pilot-harness / telemetry contract model). Avoid
+   * thinking-capable models like qwen3.5:9b — they emit <think>...</think>
+   * tokens that fight Ollama's structured-output grammar and routinely
+   * exceed perDocClassifyTimeoutMs without producing valid JSON. */
   classifierModel?: string;
   /** Optional: Ollama base URL for classifier. Default localhost:11434. */
   classifierBaseUrl?: string;
@@ -164,7 +168,7 @@ export async function main(options: DaemonOptions = {}): Promise<number> {
   // the next attempt). `classifyEnabled` defaults to true; setting it to
   // false disables the hook entirely (tests, pre-Ollama setups).
   const classifyEnabled = options.classifyEnabled ?? true;
-  const classifierModel = options.classifierModel ?? 'qwen3.5:9b';
+  const classifierModel = options.classifierModel ?? 'qwen3:8b';
   const classifierBaseUrl =
     options.classifierBaseUrl ?? 'http://localhost:11434';
   let ollamaAdapter: OllamaAdapter | null = null;

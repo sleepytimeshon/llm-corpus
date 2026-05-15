@@ -139,7 +139,7 @@ export async function runReenrichCommand(
       if (!adapter) {
         try {
           adapter = new OllamaAdapter({
-            model: args.modelName ?? 'qwen3.5:9b',
+            model: args.modelName ?? 'qwen3:8b',
             schema: CLASSIFIER_OUTPUT_JSON_SCHEMA,
             baseUrl: args.baseUrl ?? 'http://localhost:11434',
           });
@@ -155,7 +155,7 @@ export async function runReenrichCommand(
         vocabulary,
         policy,
         circuitBreaker,
-        modelName: args.modelName ?? 'qwen3.5:9b',
+        modelName: args.modelName ?? 'qwen3:8b',
         signal,
       });
 

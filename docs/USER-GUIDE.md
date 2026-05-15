@@ -124,7 +124,45 @@ corpus reenrich
 
 **B. Drop a small batch of documents that span the topics you care about.** Even though they'll all get marked `unclassified` on first pass, the proposed-terms table fills up as a side effect, and once enough distinct terms accumulate the system has something to work with.
 
-**Caveat (observed 2026-05-15):** seeding 22 starter terms (11 domains + 11 types) makes the grammar large enough that `qwen3.5:9b` constrained-decoding routinely exceeds the 60s `perDocClassifyTimeoutMs` in `interactivePolicy`. The reenrich command will report `classify_aborted` for the stuck docs. Two ways forward: (1) seed FEWER terms (say 5 domains + 5 types so the grammar is smaller), or (2) use the slower-but-bigger-budget batch policy by raising `interactivePolicy.perDocClassifyTimeoutMs` in `packages/pipeline/src/policies.ts` from 60_000 to ~180_000. Both are workarounds; the proper fix is on the polish backlog.
+**RESOLVED 2026-05-15 (was a model choice issue, not a timeout issue):** The original classifier default was `qwen3.5:9b`. That model has the `thinking` capability — it emits long internal `<think>...</think>` reasoning tokens before its final answer. When Ollama's structured-output grammar constraint is applied on top, the model gets into a state where it grinds for 5+ minutes per doc and never produces a valid JSON answer. With the diagnostic timeout removed (15min), a single classify still failed to complete. Bare-generation tests on the same model produced empty responses (all tokens consumed by thinking).
+
+The fix: switched the classifier default from `qwen3.5:9b` to `qwen3:8b` (the canonical SP-004 / pilot-harness / telemetry-contract model — non-thinking, instruction-tuned). With `qwen3:8b`:
+- single classify call: ~10s (down from never-completing)
+- valid JSON with structured-output grammar
+- sensible classification (the smoke-test doc ended up as `engineering / analysis` with five relevant tags)
+
+If you're going to use a different classifier model, **verify it's non-thinking** before pointing the daemon at it. Pass `--no-think` or pick a model where `ollama show <model>` does NOT list `thinking` under Capabilities. `gemma3:4b` also works and is faster on small VRAM. The model name lives in `packages/daemon/src/index.ts` (classifier hook default) and `packages/cli/src/reenrich-command.ts` (reenrich CLI default).
+
+### Tags are vocabulary-controlled too — seed them on a fresh install
+
+After fixing the model, the next failure is `classify.vocabulary_violation` on the **tag** axis. Tags work the same way as domain and type — first-time tags get rejected against the empty vocabulary. Seed common ones the same way:
+
+```bash
+sqlite3 ~/.local/share/llm-corpus/index.db <<'SQL'
+INSERT OR IGNORE INTO taxonomy_terms (axis, term, state, established_at) VALUES
+  ('tag', 'install',         'established', datetime('now')),
+  ('tag', 'setup',           'established', datetime('now')),
+  ('tag', 'config',          'established', datetime('now')),
+  ('tag', 'testing',         'established', datetime('now')),
+  ('tag', 'troubleshooting', 'established', datetime('now')),
+  ('tag', 'reference',       'established', datetime('now')),
+  ('tag', 'guide',           'established', datetime('now')),
+  ('tag', 'workflow',        'established', datetime('now')),
+  ('tag', 'documentation',   'established', datetime('now'));
+INSERT OR IGNORE INTO taxonomy_terms (axis, term, state, established_at) VALUES
+  ('source_type', 'note',         'established', datetime('now')),
+  ('source_type', 'article',      'established', datetime('now')),
+  ('source_type', 'reference',    'established', datetime('now')),
+  ('source_type', 'spec',         'established', datetime('now')),
+  ('source_type', 'guide',        'established', datetime('now'));
+SQL
+```
+
+Pick tags that match your real corpus. Anything you didn't seed will get rejected on first use until the proposed-term promotion CLI is built.
+
+### Known issue (separate from classification, surfaced 2026-05-15)
+
+After a doc is classified and indexed (`reindex` reports `embedded + indexed in 604ms` and `documents_fts MATCH 'corpus'` finds it directly via SQL), `corpus.find` via the MCP server returns `0 hits` with `signals_used: []`. The SP-005 hybrid orchestrator isn't surfacing what the underlying FTS5 directly matches. Will investigate as a follow-up — the substrate ingests and indexes correctly; the search-time orchestration is the gap. Also: `regenerateCatalogFromDb` references a non-existent `summary` column and fails on every reindex run (non-fatal — reindex still completes).
 
 ### "Ollama isn't responding"
 
