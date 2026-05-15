@@ -6,8 +6,16 @@ The system runs entirely on the user's machine. No document body, frontmatter, e
 
 ## Status
 
-- **Feature 001 (`001-local-only-mcp-foundation`)** — security primitive + MCP foundation. Egress hook live, MCP stdio server registered with `corpus.find` tool.
-- **Feature 002 (`002-mcp-resources`)** — four read-only MCP resources (`corpus://manifest`, `corpus://taxonomy`, `corpus://recent`, `corpus://docs/{id}`), `resource.read` telemetry event class, and the SP-002 baseline schema migration (`documents` + `taxonomy_terms` tables). The MCP server returns empty/baseline payloads on the SP-001 empty index; populated-corpus paths verified against fixtures (SC-005, SC-006, SC-007). Ranking and ingest land in SP-003 through SP-005.
+**SP-001 through SP-006 all merged on `main` as of 2026-05-14. Substrate is feature-complete.** See [`docs/SESSION_STATE.md`](docs/SESSION_STATE.md) for live state and [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for operator instructions.
+
+- **SP-001 (`001-local-only-mcp-foundation`)** — egress hook + MCP stdio server foundation + `corpus.find` tool stub.
+- **SP-002 (`002-mcp-resources`)** — four read-only MCP resources (`corpus://manifest`, `corpus://taxonomy`, `corpus://recent`, `corpus://docs/{id}`) + baseline schema (`documents`, `taxonomy_terms`).
+- **SP-003 (`003-ingest-pipeline`)** — inbox watcher → validation → hash → normalize → persist; failure-lane sidecars; drain-lock serialization.
+- **SP-004 (`004-classifier`)** — Ollama grammar-constrained metadata classification (qwen3.5:9b) + dynamic vocabulary with proposed-term routing.
+- **SP-005 (`005-retrieval`)** — four-signal hybrid retrieval (BM25 + dense via nomic-embed-text + graph + confidence) + RRF fusion + atomic index transaction + `corpus reindex` CLI.
+- **SP-006 (`006-hardening`)** — kill-9 cross-stage recovery (daemon survives SIGKILL mid-pipeline); read-only `corpus://failures` MCP resource (5th resource); Tier 1/2/3 fallthrough cascade (BM25-only → CATALOG.md grep → fs-grep) with per-tier AbortController budget; CATALOG.md flat-file mirror.
+
+187 test files, 878 passing tests. CI green on Node 20 + Node 22. Constitution Check 16/16.
 
 ## Requirements
 

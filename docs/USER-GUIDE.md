@@ -124,6 +124,8 @@ corpus reenrich
 
 **B. Drop a small batch of documents that span the topics you care about.** Even though they'll all get marked `unclassified` on first pass, the proposed-terms table fills up as a side effect, and once enough distinct terms accumulate the system has something to work with.
 
+**Caveat (observed 2026-05-15):** seeding 22 starter terms (11 domains + 11 types) makes the grammar large enough that `qwen3.5:9b` constrained-decoding routinely exceeds the 60s `perDocClassifyTimeoutMs` in `interactivePolicy`. The reenrich command will report `classify_aborted` for the stuck docs. Two ways forward: (1) seed FEWER terms (say 5 domains + 5 types so the grammar is smaller), or (2) use the slower-but-bigger-budget batch policy by raising `interactivePolicy.perDocClassifyTimeoutMs` in `packages/pipeline/src/policies.ts` from 60_000 to ~180_000. Both are workarounds; the proper fix is on the polish backlog.
+
 ### "Ollama isn't responding"
 
 Classification and embedding both depend on Ollama running locally:
