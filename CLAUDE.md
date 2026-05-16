@@ -1,12 +1,14 @@
 <!-- SPECKIT START -->
-Active feature: **006-hardening** (SP-006) — production hardening: kill-9 cross-stage recovery + `corpus://failures` read-only MCP resource + Tier 1/2/3 fallthrough cascade; spec package authored, ready for `/speckit-tasks`. **FINAL substrate sprint** — substrate ships install-complete after merge.
-Plan: [specs/006-hardening/plan.md](specs/006-hardening/plan.md)
-Spec: [specs/006-hardening/spec.md](specs/006-hardening/spec.md)
-Research: [specs/006-hardening/research.md](specs/006-hardening/research.md)
-Data model: [specs/006-hardening/data-model.md](specs/006-hardening/data-model.md)
-Checklist: [specs/006-hardening/checklists/requirements.md](specs/006-hardening/checklists/requirements.md)
-ADRs: [kill-9 recovery](specs/006-hardening/contracts/adr-kill9-recovery.md) · [failures resource](specs/006-hardening/contracts/adr-failures-resource.md) · [tier fallthrough](specs/006-hardening/contracts/adr-tier-fallthrough.md)
-Prior art (merged): [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **007-install-first-run** (SP-007) — install + 90-second first-run UX: `corpus init` subcommand, npx-publishable CLI shape, curated taxonomy seed at first-run, `corpus taxonomy promote` CLI, `corpus uninstall` with filesystem-diff reversal, OS firewall provisioning per ADR-001 path (b), NFR-006 CLI failure-lane triage. Spec + plan + tasks complete (101 atomic tasks across 9 phases); ready for `/speckit-implement`. Reconciles SP-006 known issues C-045 (in scope) + C-043/C-044 (deferred to polish PR).
+Plan: [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md)
+Spec: [specs/007-install-first-run/spec.md](specs/007-install-first-run/spec.md)
+Research: [specs/007-install-first-run/research.md](specs/007-install-first-run/research.md)
+Data model: [specs/007-install-first-run/data-model.md](specs/007-install-first-run/data-model.md)
+Tasks: [specs/007-install-first-run/tasks.md](specs/007-install-first-run/tasks.md)
+Checklist: [specs/007-install-first-run/checklists/requirements.md](specs/007-install-first-run/checklists/requirements.md)
+ADRs: [install-uninstall surface](specs/007-install-first-run/contracts/adr-install-uninstall-surface.md) · [firewall provisioning](specs/007-install-first-run/contracts/adr-firewall-provisioning.md) · [taxonomy-promote CLI](specs/007-install-first-run/contracts/adr-taxonomy-promote-cli.md) · [curated seed](specs/007-install-first-run/contracts/adr-curated-seed.md)
+Prior art (merged): [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+SP-006 retrospective: [specs/006-hardening/RETROSPECTIVE.md](specs/006-hardening/RETROSPECTIVE.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
 
