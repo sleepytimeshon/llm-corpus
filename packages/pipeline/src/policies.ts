@@ -81,6 +81,47 @@ export const PolicySchema = z.object({
     .default(5_000),
   /** Minimum result count before the orchestrator falls through to the next tier. */
   minResultsForFallthrough: z.number().int().min(0).max(100).default(3),
+  // --- SP-007 fields (PREREQ-004) ---
+  // Optional with defaults so existing SP-003/SP-004/SP-005/SP-006 Policy
+  // literals continue to parse unchanged. PolicySchema.parse() fills in the
+  // SP-007 defaults when absent. The 90-second installBudgetMs is the
+  // Constitution VII enforced ceiling per FR-INSTALL-002 + SC-007-034.
+  /** Full `corpus init` 11-step pipeline budget (ms). */
+  installBudgetMs: z.number().int().min(1000).max(600_000).default(90_000),
+  /** `corpus init --smoke` step-12 sub-budget (ms). */
+  smokeBudgetMs: z.number().int().min(1000).max(600_000).default(30_000),
+  /** `corpus uninstall` active-daemon stop sub-budget (ms). */
+  uninstallDaemonStopBudgetMs: z
+    .number()
+    .int()
+    .min(500)
+    .max(60_000)
+    .default(2_000),
+  /** `corpus init` step-8 OS firewall provisioning sub-budget (ms). */
+  firewallProvisionBudgetMs: z
+    .number()
+    .int()
+    .min(500)
+    .max(60_000)
+    .default(10_000),
+  /** `corpus init` step-7 MCP-client config mutate sub-budget (ms). */
+  mcpClientConfigMutateBudgetMs: z
+    .number()
+    .int()
+    .min(100)
+    .max(60_000)
+    .default(1_000),
+  /** `corpus init` step-6 taxonomy seed INSERT sub-budget (ms). */
+  seedInsertBudgetMs: z.number().int().min(100).max(60_000).default(1_000),
+  /** `corpus init` step-3 XDG subtree mkdir sub-budget (ms). */
+  xdgBringupBudgetMs: z.number().int().min(100).max(60_000).default(2_000),
+  /** `corpus init` step-4 SQLite open + migrate + checkpoint sub-budget (ms). */
+  sqliteSinglefileBudgetMs: z
+    .number()
+    .int()
+    .min(500)
+    .max(60_000)
+    .default(10_000),
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
@@ -146,4 +187,57 @@ export const batchPolicy: Policy = PolicySchema.parse({
   tierFsGrepTimeoutMs: 500,
   failuresResourceTimeoutMs: 5_000,
   minResultsForFallthrough: 3,
+});
+
+// ---------------------------------------------------------------------------
+// SP-007 PREREQ-004 — install / uninstall policy literals.
+//
+// References:
+//   - specs/007-install-first-run/plan.md PREREQ-004
+//   - specs/007-install-first-run/spec.md FR-INSTALL-002, FR-INSTALL-013
+//   - Constitution Principles VI, VII
+//
+// `installPolicy` is the interactive baseline for the `corpus init` 11-step
+// pipeline + optional `--smoke` step 12. `uninstallPolicy` is the
+// receipt-driven `corpus uninstall` flow. Both reuse `interactive`-style
+// per-doc / per-stage timeouts (short, no-retry, progress-emitting) because
+// install and uninstall are one-shot operator-driven invocations, never
+// daemon-batched.
+
+export const installPolicy: Policy = PolicySchema.parse({
+  name: 'interactive',
+  perDocTimeoutMs: 60_000,
+  perStageTimeoutMs: 30_000,
+  retryOnRetriableError: false,
+  emitProgress: true,
+  perDocClassifyTimeoutMs: 60_000,
+  classifyRetryMaxAttempts: 1,
+  consecutiveOllamaFailureBatchHaltThreshold: 3,
+  installBudgetMs: 90_000,
+  smokeBudgetMs: 30_000,
+  uninstallDaemonStopBudgetMs: 2_000,
+  firewallProvisionBudgetMs: 10_000,
+  mcpClientConfigMutateBudgetMs: 1_000,
+  seedInsertBudgetMs: 1_000,
+  xdgBringupBudgetMs: 2_000,
+  sqliteSinglefileBudgetMs: 10_000,
+});
+
+export const uninstallPolicy: Policy = PolicySchema.parse({
+  name: 'interactive',
+  perDocTimeoutMs: 60_000,
+  perStageTimeoutMs: 30_000,
+  retryOnRetriableError: false,
+  emitProgress: true,
+  perDocClassifyTimeoutMs: 60_000,
+  classifyRetryMaxAttempts: 1,
+  consecutiveOllamaFailureBatchHaltThreshold: 3,
+  installBudgetMs: 90_000,
+  smokeBudgetMs: 30_000,
+  uninstallDaemonStopBudgetMs: 2_000,
+  firewallProvisionBudgetMs: 10_000,
+  mcpClientConfigMutateBudgetMs: 1_000,
+  seedInsertBudgetMs: 1_000,
+  xdgBringupBudgetMs: 2_000,
+  sqliteSinglefileBudgetMs: 10_000,
 });

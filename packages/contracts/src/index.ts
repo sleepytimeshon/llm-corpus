@@ -27,3 +27,6 @@ export * from './search-schemas.js';
 
 // SP-006 additions
 export * from './failures-resource-schema.js';
+
+// SP-007 additions
+export * from './install-schemas.js';

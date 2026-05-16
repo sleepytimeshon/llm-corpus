@@ -1,13 +1,8 @@
 <!-- SPECKIT START -->
-Active feature: **007-install-first-run** (SP-007) — install + 90-second first-run UX: `corpus init` subcommand, npx-publishable CLI shape, curated taxonomy seed at first-run, `corpus taxonomy promote` CLI, `corpus uninstall` with filesystem-diff reversal, OS firewall provisioning per ADR-001 path (b), NFR-006 CLI failure-lane triage. Spec + plan + tasks complete (101 atomic tasks across 9 phases); ready for `/speckit-implement`. Reconciles SP-006 known issues C-045 (in scope) + C-043/C-044 (deferred to polish PR).
-Plan: [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md)
-Spec: [specs/007-install-first-run/spec.md](specs/007-install-first-run/spec.md)
-Research: [specs/007-install-first-run/research.md](specs/007-install-first-run/research.md)
-Data model: [specs/007-install-first-run/data-model.md](specs/007-install-first-run/data-model.md)
-Tasks: [specs/007-install-first-run/tasks.md](specs/007-install-first-run/tasks.md)
-Checklist: [specs/007-install-first-run/checklists/requirements.md](specs/007-install-first-run/checklists/requirements.md)
-ADRs: [install-uninstall surface](specs/007-install-first-run/contracts/adr-install-uninstall-surface.md) · [firewall provisioning](specs/007-install-first-run/contracts/adr-firewall-provisioning.md) · [taxonomy-promote CLI](specs/007-install-first-run/contracts/adr-taxonomy-promote-cli.md) · [curated seed](specs/007-install-first-run/contracts/adr-curated-seed.md)
-Prior art (merged): [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active feature: **none** — SP-007 merged on `main` 2026-05-16. **Next: SP-008** (user-acceptance + Maya engagement-proxy gate). Begin with `/speckit-specify "008-user-acceptance"`.
+Last sprint: [specs/007-install-first-run/RETROSPECTIVE.md](specs/007-install-first-run/RETROSPECTIVE.md)
+Prior art (merged): [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md) · [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md)
+SP-007 retrospective: [specs/007-install-first-run/RETROSPECTIVE.md](specs/007-install-first-run/RETROSPECTIVE.md)
 SP-006 retrospective: [specs/006-hardening/RETROSPECTIVE.md](specs/006-hardening/RETROSPECTIVE.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
@@ -112,6 +107,38 @@ Tier fallthrough: `search.tier_fallthrough` · `search.tier_skipped` · `search.
 - **Tier orchestrator** — `packages/index/src/tier-orchestrator.ts` wraps the SP-005 `searchOrchestrator` as Tier 0 then cascades.
 
 **SP-006 is the FINAL substrate sprint**: after merge, the corpus substrate is install-complete (SP-001..SP-006 all on `main`). Product / app sprints (v1.5+) build on top — retrieval-eval harness, CLI for failures cleanup, dimension-change migration, chunked embeddings, etc.
+
+## SP-007 surface (install + 90-second first-run UX — `corpus init` + uninstall + taxonomy promote + failures CLI)
+
+The install-completion sprint. SP-007 makes a clean Linux or macOS workstation with Node ≥ 18 + Ollama install-able in under 90 seconds via `npx @llm-corpus/cli init`. All four deliverables ship additively on `packages/cli/` + `packages/contracts/` only; ZERO new packages; ZERO new SQL tables; ZERO new `Paths.*` getters; ZERO new MCP mutation surfaces.
+
+**1. `corpus init` 11-step pipeline + optional `--smoke` step 12** (`packages/cli/src/install-command.ts` + `packages/cli/src/install-helpers/*.ts`): the 11 steps are (1) preflight → (2) idempotency check → (3) XDG bringup → (4) SQLite singlefile → (5) `config.toml` → (6) curated taxonomy seed → (7) MCP-client config → (8) OS firewall → (9) auto-start unit (only if `--enable-autostart`) → (10) install-receipt → (11) next-step output. The whole pipeline is wrapped in a 90-second `AbortController` budget per FR-INSTALL-002 (NEVER `Promise.race(setTimeout)` — Constitution VII; uses `setTimeout + clearTimeout + controller.abort()`). On `--smoke` the harness adds a 12th step with its own 30-second sub-budget: spawn `corpus daemon`, copy `packages/cli/fixtures/first-run-seed.md` into `Paths.inbox()`, poll telemetry for `edges-build.completed`, spawn `corpus mcp` and invoke `corpus.find` via real MCP-stdio, assert ≥ 1 SearchHit; tear down. On any step failure the rollback walks the in-memory `InstallReceipt`'s recorded side-effects in reverse order. **Idempotent** per Constitution X: re-run on existing install is a no-op printing `"already initialized"` + exit 0.
+
+**2. `corpus uninstall [--purge]` receipt-driven reverse** (`packages/cli/src/uninstall-command.ts`): reads `Paths.state()/install-receipt.json`, Zod-validates as `InstallReceiptZodSchema`, then reverses every recorded side-effect: (a) `mcpServers.corpus` removed from MCP-client config (preserving other entries; atomic via `withTempDir`); (b) firewall rules reversed via each recorded `reverse_command` through `runTool()`; (c) auto-start unit reversed (`systemctl --user disable --now corpus.service` or `launchctl unload <plist>`); (d) on `--purge` XDG subtree removed + receipt deleted; otherwise receipt marked `uninstalled: true` + `uninstalled_at: <now>` + XDG preserved. On missing/malformed receipt or platform mismatch: exit non-zero + ZERO destructive operations. SIGINT mid-flow records partial-uninstall state for idempotent resume.
+
+**3. `corpus taxonomy promote` proposed→established CLI** (`packages/cli/src/taxonomy-promote-command.ts` + `packages/cli/src/install-helpers/taxonomy-promote-helpers.ts`): accepts `--axis=<v> --term=<t>` (repeatable) OR `--from-proposed-with-count-ge=<N>` (mutually exclusive — Zod XOR refinement). Acquires `Paths.drainLock()` via `flock(LOCK_EX | LOCK_NB)`; opens `BEGIN IMMEDIATE`; UPDATEs `taxonomy_terms` rows from `state='proposed'` to `state='established'` and sets `established_at=datetime('now')` in a single transaction; releases lock. Idempotent on already-established (prints `"already established: <axis>/<term>"`, no SQL UPDATE). Missing-term throws `TaxonomyPromoteMissingTermError` with ZERO SQL writes. Lock contention emits `taxonomy.promote_lock_contention` + ZERO SQL writes. Closes C-045 (cold-start vocabulary UX gap).
+
+**4. `corpus failures list | show` thin CLI** (`packages/cli/src/failures-command.ts`): human-operator surface over `Paths.failed()`. `list` is a paginated table or `--json` listing (filterable by `--stage=`, `--since=`, `--limit=`, `--offset=`); `show <doc-id>` prints the full sidecar JSON. **Read-only by construction** — reads `Paths.failed()` directly via `fs.readdir` + `fs.readFile`; never spawns an MCP server (the `corpus://failures` MCP resource is for AI agents). NO new MCP mutation surfaces per FR-INSTALL-023.
+
+**5. Curated ≤ 50-term taxonomy seed** (`packages/cli/src/install-resources/taxonomy-seed.json`, 33 entries: 6 domain + 7 type + 13 tag + 7 source_type; all axis floors exceeded): bundled into the published package via `packages/cli/package.json` `files` field. Step 6 of the install pipeline INSERTs these as `state='established'` rows under drain-lock. Operator-authored taxonomy rows with the same `(axis, term)` are preserved via `INSERT OR IGNORE` (Constitution X idempotency).
+
+**6. OS firewall provisioning per ADR-013** (`packages/cli/src/install-helpers/firewall-provisioner.ts`): UID-scoped rules (Constitution IV + ADR-001 path (b)). Linux uses `iptables -A OUTPUT -m owner --uid-owner <uid> ! -d 127.0.0.1/8 -j REJECT -m comment --comment llm-corpus` via `runTool()`; macOS uses `pfctl` with an anchor `corpus`. Sudo elevation handled via `runTool('sudo', ['iptables', ...])` with stdin/stderr 'inherit' so the operator sees the password prompt; sudo prompt NEVER logged in telemetry. Idempotent (existing-rule detection); captures the `reverse_command` into the install-receipt so uninstall is verbatim. ZERO string-formed shell commands per Constitution XII.
+
+**Telemetry classes** (12 SP-007 variants in `TelemetryEvent`):
+
+Install: `install.preflight_failed` · `install.step_failed` · `install.completed` · `install.smoke_started` · `install.smoke_completed` · `install.smoke_failed`
+
+Uninstall: `uninstall.preflight_failed` · `uninstall.step_failed` · `uninstall.completed`
+
+Taxonomy: `taxonomy.promote_completed` · `taxonomy.promote_lock_contention` · `taxonomy.promote_missing_term`
+
+(Plus the existing SP-006 `pipeline.lock_contention` class re-used by `corpus taxonomy promote` per Edge Cases + SC-007-022.)
+
+**Schema-gap resolution** (Engineer #3, 2026-05-16): the spec referenced a `proposed_count` column on `taxonomy_terms` that was never added by any SP-004..SP-006 migration. Adding one conflicted with "ZERO new SQL tables / columns" — instead, `runTaxonomyPromote --from-proposed-with-count-ge=<N>` computes the count at query time from `documents.facet_domain` / `documents.tags_json` / `documents.facet_type` / `documents.source_type` rows already written by the classifier persister. Lossless — the count IS the historical truth.
+
+**Two explicit deferrals** (per FR-INSTALL-026 + FR-INSTALL-027 → C-043 + C-044, routed to post-SP-007 polish PR): C-043 (`signals_used: []` reporting bug in tier-orchestrator), C-044 (`regenerateCatalogFromDb` references non-existent `summary` column). Documented in `docs/SESSION_STATE.md`.
+
+**SP-007 is the INSTALL-COMPLETION sprint**: after merge, the corpus substrate is operator-installable end-to-end on a clean Linux or macOS workstation with Node ≥ 18 + Ollama via `npx @llm-corpus/cli init` in ≤ 90 seconds. The next sprint (SP-008) builds on top with user-acceptance + Maya engagement-proxy gate.
 
 # Working in this repo
 

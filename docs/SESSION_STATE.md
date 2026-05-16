@@ -1,6 +1,6 @@
 # llm-corpus Session State
 
-**Last updated:** 2026-05-14 — SP-006 merged; **llm-corpus substrate is PRODUCTION-READY**
+**Last updated:** 2026-05-16 — SP-007 merged; **llm-corpus substrate is INSTALL-COMPLETE end-to-end**
 **Authoritative:** this file. Memory pointers in ~/.claude reference here.
 
 ## Current status
@@ -12,9 +12,21 @@
 | SP-003 | Ingest pipeline — inbox watcher → validation → hash → normalize → persist | ✅ Merged 2026-05-12 (PR #11; daemon fix #12) |
 | SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | ✅ Merged 2026-05-13 (PR #13, commit 33f233c) |
 | SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ Merged 2026-05-13 (PR #14, commit 7592eb9) |
-| SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ✅ **Merged 2026-05-14 (PR #15, squash commit 5237916)** |
+| SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ✅ Merged 2026-05-14 (PR #15, squash commit 5237916) |
+| SP-007 | `corpus init` 11-step pipeline + 90-second first-run UX + `corpus uninstall` + `corpus taxonomy promote` + `corpus failures` CLI + C-046 smoke harness | ✅ **Merged 2026-05-16** |
 
-**Branch:** `main` clean. SP-001 through SP-006 all on `main`. **The substrate is FEATURE-COMPLETE at the SP-006 scope** — but per roadmap (`.product/ROADMAP.yaml`) there are still **two planned sprints ahead**: SP-007 (install + 90-second first-run UX) and SP-008 (user-acceptance + Maya engagement-proxy gate). The 2026-05-14 production install on pai-node01 is an SP-007 ADVANCE deliverable, not the SP-007 sprint itself.
+**Branch:** `main` clean. SP-001 through SP-007 all on `main`. **The substrate is FEATURE-COMPLETE and INSTALL-COMPLETE**: a clean Linux or macOS workstation with Node ≥ 18 + Ollama can run `npx @llm-corpus/cli init` and have a working substrate end-to-end in under 90 seconds. **Next up: SP-008 (user-acceptance + Maya engagement-proxy gate).**
+
+## Two explicit deferrals from SP-007 (FR-INSTALL-026 + FR-INSTALL-027)
+
+Both are tracked here, NOT in informal backlog:
+
+- **C-043** (SP-006 carryover): `signals_used: []` reporting bug in `packages/index/src/tier-orchestrator.ts` — the tier orchestrator wraps the SP-005 hybrid retriever but doesn't propagate `signals_used` from inner SearchOutput to outer envelope when tier-fallthrough occurs. Cosmetic but violates FR-RETRIEVAL-002. Routed to post-SP-007 polish PR per FR-INSTALL-026.
+- **C-044** (SP-006 carryover): `regenerateCatalogFromDb` in `packages/storage/src/catalog-md-generator.ts` references a non-existent `summary` column on `documents`. Non-fatal — reindex exits 0 even when CATALOG.md regen errors. Routed to post-SP-007 polish PR per FR-INSTALL-027.
+
+## SP-007 — closed 2026-05-16 with formal retrospective
+
+Retrospective at `specs/007-install-first-run/RETROSPECTIVE.md`. Sprint marked **COMPLETED-WITH-EXPLICIT-DEFERRALS** (C-043 + C-044 explicitly excluded per FR-INSTALL-026 + FR-INSTALL-027; routed to post-SP-007 polish PR).
 
 ## SP-006 — closed 2026-05-15 with formal retrospective
 
@@ -38,15 +50,20 @@ Retrospective at `specs/006-hardening/RETROSPECTIVE.md`. Sprint marked **COMPLET
 | `53c7bc2` | D-025 + D-026 — MCP transport wire-up + Ollama `keep_alive: '30m'` | Was ad-hoc; reconciled in retro |
 | `1678e0a`, `68ff55f`, `b854016` | Docs updates | Legitimate end-of-sprint docs work |
 
-## SP-007 — entry conditions met; spec-kit `/specify` run is the next move
+## SP-008 — entry conditions met; spec-kit `/specify` run is the next move
 
-Per `.product/SPRINT-PLAN.yaml` SP-007:
-- **Goal**: Ship install + 90-second first-run UX (TR-001, TR-002, NFR-014, NFR-010, NFR-006) so `npx` invocation provisions a working corpus within 90 seconds.
-- **Entry criterion**: `sprint_006_exit_criteria_all_passed` → ✅ satisfied
-- **Already-done as advance deliverable (D-027)**: bash shim at `~/.local/bin/corpus`, XDG subtree at `~/.local/share/llm-corpus/`, systemd user unit, MCP server registered. The SP-007 spec will need to reconcile what's done vs what's still needed (the `corpus init` subcommand, `npx` package, 90-second first-run automation, taxonomy promotion CLI per C-045 mitigation).
-- **Folding in from C-043, C-044, C-045**: SP-007 spec author should explicitly include/exclude each, with rationale.
+Per `.product/SPRINT-PLAN.yaml` SP-008:
+- **Goal**: User-acceptance + Maya engagement-proxy gate (acceptance metric for "AI-native operator value" landed under SP-007's installable substrate).
+- **Entry criterion**: `sprint_007_exit_criteria_all_passed` → ✅ satisfied (SP-007 merged 2026-05-16; C-043 + C-044 deferred per FR-INSTALL-026 / 027; no other blockers).
+- **Available capability stack**:
+  - `npx @llm-corpus/cli init` provisions a working substrate end-to-end in ≤ 90 s.
+  - `corpus uninstall [--purge]` reverses every install side-effect from the receipt.
+  - `corpus taxonomy promote` resolves the cold-start vocabulary UX (closes C-045).
+  - `corpus failures list|show` triages failure-lane sidecars from the human-operator CLI.
+  - The C-046 end-to-end smoke spawns the production binary + invokes real MCP-stdio.
+- **Folding in from SP-007**: SP-008 should explicitly include/exclude C-043 + C-044 (currently deferred) and decide whether they belong in SP-008 scope or in an independent polish PR.
 
-**Right next step**: invoke the ProductDevelopment skill against SP-007 scope to produce `specs/007-install-first-run/` with spec.md + plan.md + tasks.md + contracts/ + checklists/, exactly as SP-006 was produced. **Do NOT continue with ad-hoc fixes on main.**
+**Right next step**: invoke the ProductDevelopment skill against SP-008 scope to produce `specs/008-user-acceptance/` with spec.md + plan.md + tasks.md + contracts/ + checklists/.
 
 ## SP-006 implementation summary (2026-05-14)
 

@@ -1,0 +1,1 @@
+{ "mcpServers": { "broken": { "command": "/x", args: ["mcp"] } /* missing-quote on `args` triggers JSON.parse failure

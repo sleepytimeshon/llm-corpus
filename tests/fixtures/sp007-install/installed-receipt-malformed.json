@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "installed_at": "2026-05-15T14:30:00.123Z",
+  "installed_via": "npx",
+  "corpus_binary_path": "/usr/local/bin/corpus",
+  "created_paths": [],
+  "mcp_client_configs": [],
+  "firewall_rules": [],
+  "auto_start_units": [],
+  "seeded_taxonomy_terms": [],
+  "os": "linux",
+  "os_version": "6.19.13-200.fc43.x86_64",
+  "node_version": "22.22.0"
+}

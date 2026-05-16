@@ -1132,3 +1132,270 @@ export class GrepSubprocessError extends Error {
     }
   }
 }
+
+// ============================================================================
+// SP-007 — Install / uninstall / taxonomy-promote typed errors (PREREQ-003)
+// ============================================================================
+//
+// References:
+//   - specs/007-install-first-run/spec.md FR-INSTALL-019, SC-007-032
+//   - specs/007-install-first-run/tasks.md T004 / T014
+//   - Constitution Principle XI (Library/CLI Boundary)
+//
+// 10 typed errors — every install / uninstall / taxonomy-promote failure
+// surface returns Result.err(<typed-error>) (or throws), NEVER process.exit.
+// process.exit is reserved for the three CLI command entry points
+// (install-command.ts / uninstall-command.ts / taxonomy-promote-command.ts)
+// per Constitution XI + FR-INSTALL-019.
+
+/** `corpus init` preflight failure — Node version / Ollama / XDG / partial debris. */
+export class InstallPreflightError extends Error {
+  readonly code = 'INSTALL_PREFLIGHT_ERROR' as const;
+  override readonly name = 'InstallPreflightError';
+  readonly data: {
+    unmet_requirement: string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      unmet_requirement: string;
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Install preflight failed (${data.unmet_requirement}): ${data.message}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** OS firewall provisioning failed (binary missing / sudo unavailable / pfctl-iptables non-zero). */
+export class InstallFirewallProvisionError extends Error {
+  readonly code = 'INSTALL_FIREWALL_PROVISION_ERROR' as const;
+  override readonly name = 'InstallFirewallProvisionError';
+  readonly data: {
+    error_code: string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      error_code: string;
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Install firewall provision failed (${data.error_code}): ${data.message}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** MCP-client config mutation failed (malformed JSON / write failure). */
+export class InstallMCPClientConfigError extends Error {
+  readonly code = 'INSTALL_MCP_CLIENT_CONFIG_ERROR' as const;
+  override readonly name = 'InstallMCPClientConfigError';
+  readonly data: {
+    path: string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: { path: string; message: string; [key: string]: unknown },
+    cause?: unknown,
+  ) {
+    super(`Install MCP-client config mutation failed (${data.path}): ${data.message}`);
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** Install-receipt atomic write failed. */
+export class InstallReceiptWriteError extends Error {
+  readonly code = 'INSTALL_RECEIPT_WRITE_ERROR' as const;
+  override readonly name = 'InstallReceiptWriteError';
+  readonly data: { message: string; [key: string]: unknown };
+
+  constructor(
+    data: { message: string; [key: string]: unknown },
+    cause?: unknown,
+  ) {
+    super(`Install receipt write failed: ${data.message}`);
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** 90-second `corpus init` budget exceeded; AbortController fired. */
+export class InstallBudgetExceededError extends Error {
+  readonly code = 'INSTALL_BUDGET_EXCEEDED' as const;
+  override readonly name = 'InstallBudgetExceededError';
+  readonly data: {
+    elapsed_ms: number;
+    budget_ms: number;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    elapsed_ms: number;
+    budget_ms: number;
+    [key: string]: unknown;
+  }) {
+    super(
+      `Install budget exceeded: elapsed=${data.elapsed_ms}ms > budget=${data.budget_ms}ms`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * `corpus uninstall` preflight failed because the install-receipt is missing,
+ * malformed, or fails Zod (e.g., `schema_version: 2`). ZERO destructive ops
+ * occur before this fires.
+ */
+export class UninstallReceiptMissingError extends Error {
+  readonly code = 'UNINSTALL_RECEIPT_MISSING' as const;
+  override readonly name = 'UninstallReceiptMissingError';
+  readonly data: {
+    receipt_path: string;
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      receipt_path: string;
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Uninstall preflight failed (receipt at ${data.receipt_path}): ${data.message}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/** OS firewall reverse-command (recorded in install-receipt) failed during uninstall. */
+export class UninstallFirewallReverseError extends Error {
+  readonly code = 'UNINSTALL_FIREWALL_REVERSE_ERROR' as const;
+  override readonly name = 'UninstallFirewallReverseError';
+  readonly data: {
+    reverse_command: { cmd: string; args: readonly string[] };
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(
+    data: {
+      reverse_command: { cmd: string; args: readonly string[] };
+      message: string;
+      [key: string]: unknown;
+    },
+    cause?: unknown,
+  ) {
+    super(
+      `Uninstall firewall reverse (${data.reverse_command.cmd}) failed: ${data.message}`,
+    );
+    this.data = data;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+/**
+ * `corpus taxonomy promote` could not acquire `Paths.drainLock()` — another
+ * drain process (typically the daemon) is holding the lock. ZERO SQL writes
+ * occur before this fires.
+ */
+export class TaxonomyPromoteLockContentionError extends Error {
+  readonly code = 'TAXONOMY_PROMOTE_LOCK_CONTENTION' as const;
+  override readonly name = 'TaxonomyPromoteLockContentionError';
+  readonly data: {
+    lock_path: string;
+    lock_holder_hint?: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    lock_path: string;
+    lock_holder_hint?: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `Taxonomy promote lock contention at ${data.lock_path}${
+        data.lock_holder_hint !== undefined
+          ? ` (holder hint: ${data.lock_holder_hint})`
+          : ''
+      }`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * `corpus taxonomy promote --axis=<v> --term=<t>` could not find a matching
+ * `(axis, term)` row in `taxonomy_terms`. ROLLBACKs the transaction; ZERO
+ * SQL writes persist.
+ */
+export class TaxonomyPromoteMissingTermError extends Error {
+  readonly code = 'TAXONOMY_PROMOTE_MISSING_TERM' as const;
+  override readonly name = 'TaxonomyPromoteMissingTermError';
+  readonly data: {
+    axis: string;
+    term: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: { axis: string; term: string; [key: string]: unknown }) {
+    super(`Taxonomy promote missing term: ${data.axis}/${data.term}`);
+    this.data = data;
+  }
+}
+
+/**
+ * `corpus taxonomy promote` argv failed `TaxonomyPromoteArgsZodSchema`
+ * (unknown axis, mixed --axis/--term + --from-proposed-with-count-ge,
+ * empty terms, negative threshold).
+ */
+export class TaxonomyPromoteArgsError extends Error {
+  readonly code = 'TAXONOMY_PROMOTE_ARGS_ERROR' as const;
+  override readonly name = 'TaxonomyPromoteArgsError';
+  readonly data: {
+    issues: readonly string[];
+    message: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    issues: readonly string[];
+    message: string;
+    [key: string]: unknown;
+  }) {
+    super(`Taxonomy promote args error: ${data.message}`);
+    this.data = data;
+  }
+}

@@ -10,6 +10,9 @@ export default defineConfig({
       'tests/contract/**/*.test.ts',
       'tests/lint-fixtures/**/*.test.ts',
       'packages/*/src/**/*.test.ts',
+      // SP-007 T050 — C-046 smoke harness lives next to the CLI package so
+      // it can resolve the dist binary via a relative path.
+      'packages/*/test/**/*.test.ts',
     ],
     // Per-test-file CORPUS_HOME isolation. Each vitest worker gets a unique
     // tmpdir-rooted CORPUS_HOME so parallel test files do not race on
