@@ -14,22 +14,39 @@
 | SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ Merged 2026-05-13 (PR #14, commit 7592eb9) |
 | SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ✅ **Merged 2026-05-14 (PR #15, squash commit 5237916)** |
 
-**Branch:** `main` clean. SP-001 through SP-006 all on `main`. **The substrate is feature-complete and production-ready.**
+**Branch:** `main` clean. SP-001 through SP-006 all on `main`. **The substrate is FEATURE-COMPLETE at the SP-006 scope** — but per roadmap (`.product/ROADMAP.yaml`) there are still **two planned sprints ahead**: SP-007 (install + 90-second first-run UX) and SP-008 (user-acceptance + Maya engagement-proxy gate). The 2026-05-14 production install on pai-node01 is an SP-007 ADVANCE deliverable, not the SP-007 sprint itself.
 
-## Production milestone — REACHED 2026-05-14
+## SP-006 — closed 2026-05-15 with formal retrospective
 
-All six substrate sprints landed. The corpus is install-ready, classify-ready, embed-ready, search-ready (with four-tier graceful degradation), kill-9-recoverable, and failure-introspectable via the read-only `corpus://failures` MCP resource. Test surface: 878 passing across 187 files; build + lint exit 0 on Node 20 + Node 22 in CI.
+Retrospective at `specs/006-hardening/RETROSPECTIVE.md`. Sprint marked **COMPLETED-WITH-KNOWN-ISSUES**. Five new issues recorded in `.product/ledgers/concerns.jsonl` (C-043..C-047); five decisions in `.product/ledgers/decisions.jsonl` (D-023..D-027).
 
-### Post-merge polish backlog (non-blocking; will land in a follow-up PR)
+**Known issues from SP-006 (now tracked in ledgers, NOT informal backlog):**
 
-- Dead error-class wiring — 6 SP-006 typed errors are exported and tested but never thrown by production code. Wire them in at the appropriate failure sites (FailuresResourceError, CatalogMissingError, GrepSubprocessError) or delete.
-- Tier speculative parallelism — current cascade is strictly sequential (Tier 0 → 1 → 2 → 3). Future optimization: fire Tier 0/1/2 in parallel under per-tier budgets; gate Tier 3 (the expensive subprocess) on `merged.size < minResultsForFallthrough`.
-- Telemetry envelope mismatch — `search.tier_failed` is currently emitted for CATALOG.md write/regenerate failures. Add a dedicated `catalog.append_failed` / `catalog.regenerate_failed` event class and relabel.
-- Config-loader consolidation — three near-identical TOML section loaders (`loadResourceConfig`, `loadIngestConfig`, `loadSearchConfig`) should share a `readConfigToml()` helper.
-- Live pai-node01 p95 latency measurement for §10.6 tier targets (T060–T063 from SP-006 tasks.md).
-- requirements.md outcome marking (T064).
-- CLAUDE.md SP-006 surface section (T065).
-- `.specify/feature.json` update (T066).
+| ID | Severity | Issue | Routing |
+|---|---|---|---|
+| C-043 | low | `signals_used: []` even when hits returned (FR-RETRIEVAL-002 violation) | SP-007 scope candidate or polish PR |
+| C-044 | low | `regenerateCatalogFromDb` references non-existent `summary` column | SP-007 scope candidate or polish PR |
+| C-045 | **high** | Cold-start vocabulary UX gap — substrate cannot classify first doc on fresh install | SP-007 scope (UX-blocking) |
+| C-046 | medium | SP-006 review process gap — no end-to-end CLI→MCP→search smoke | ProductDevelopment skill template improvement |
+| C-047 | medium | Pallas-side process drift (hot-fixes on main without discipline) | **Closed by this retro** |
+
+**Post-merge code commits to main (now reconciled via ledger):**
+
+| Commit | Decision | Sprint discipline |
+|---|---|---|
+| `6b8ba22` | D-024 — classifier model `qwen3.5:9b` → `qwen3:8b` | Was ad-hoc; reconciled in retro |
+| `53c7bc2` | D-025 + D-026 — MCP transport wire-up + Ollama `keep_alive: '30m'` | Was ad-hoc; reconciled in retro |
+| `1678e0a`, `68ff55f`, `b854016` | Docs updates | Legitimate end-of-sprint docs work |
+
+## SP-007 — entry conditions met; spec-kit `/specify` run is the next move
+
+Per `.product/SPRINT-PLAN.yaml` SP-007:
+- **Goal**: Ship install + 90-second first-run UX (TR-001, TR-002, NFR-014, NFR-010, NFR-006) so `npx` invocation provisions a working corpus within 90 seconds.
+- **Entry criterion**: `sprint_006_exit_criteria_all_passed` → ✅ satisfied
+- **Already-done as advance deliverable (D-027)**: bash shim at `~/.local/bin/corpus`, XDG subtree at `~/.local/share/llm-corpus/`, systemd user unit, MCP server registered. The SP-007 spec will need to reconcile what's done vs what's still needed (the `corpus init` subcommand, `npx` package, 90-second first-run automation, taxonomy promotion CLI per C-045 mitigation).
+- **Folding in from C-043, C-044, C-045**: SP-007 spec author should explicitly include/exclude each, with rationale.
+
+**Right next step**: invoke the ProductDevelopment skill against SP-007 scope to produce `specs/007-install-first-run/` with spec.md + plan.md + tasks.md + contracts/ + checklists/, exactly as SP-006 was produced. **Do NOT continue with ad-hoc fixes on main.**
 
 ## SP-006 implementation summary (2026-05-14)
 
