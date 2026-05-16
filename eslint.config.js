@@ -76,6 +76,12 @@ export default [
 
   // Constitution XI — no process.exit in libraries.
   // Scope: contracts, core, storage, index, inference, extract, pipeline.
+  // SP-007 T019 extends scope to packages/cli/src/install-helpers/**/*.ts
+  // (the install-helpers library directory) while leaving the three CLI
+  // command entry points (install-command.ts / uninstall-command.ts /
+  // taxonomy-promote-command.ts) AND the legacy daemon-commands.ts /
+  // reenrich-command.ts / reindex-command.ts files OUT of scope (they
+  // are CLI entry points per Constitution XI + FR-INSTALL-019).
   {
     files: [
       'packages/contracts/**/*.ts',
@@ -84,6 +90,8 @@ export default [
       'packages/inference/**/*.ts',
       'packages/extract/**/*.ts',
       'packages/pipeline/**/*.ts',
+      // SP-007: install-helpers library directory.
+      'packages/cli/src/install-helpers/**/*.ts',
     ],
     plugins: { 'llm-corpus': localRulesPlugin },
     rules: {

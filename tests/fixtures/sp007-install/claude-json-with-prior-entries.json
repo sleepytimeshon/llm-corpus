@@ -1,0 +1,14 @@
+{
+  "$schema": "https://example.invalid/claude-config.schema.json",
+  "mcpServers": {
+    "example-prior-server-a": {
+      "command": "/usr/local/bin/server-a",
+      "args": ["serve"]
+    },
+    "example-prior-server-b": {
+      "command": "/opt/server-b/bin/server-b",
+      "args": ["--mode", "stdio"]
+    }
+  },
+  "someOtherTopLevelKey": "preserved-by-corpus-init"
+}

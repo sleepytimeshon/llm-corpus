@@ -1054,6 +1054,259 @@ export const DaemonStartedEvent = z.object({
 });
 export type DaemonStartedEventType = z.infer<typeof DaemonStartedEvent>;
 
+// --- SP-007 — Install / uninstall / taxonomy-promote event classes (12) ----
+//
+// References:
+//   - specs/007-install-first-run/spec.md FR-INSTALL-021, SC-007-033
+//   - specs/007-install-first-run/data-model.md §"Entity 7 — InstallTelemetry"
+//   - Constitution Principles I, V, IX, XIII
+//
+// Shared envelope: `event`, `timestamp`, `severity`, `outcome`. Discriminator
+// is `event` (consistent with SP-001..SP-006 union shape).
+//
+// SP-007 uses its own severity / outcome enums to match data-model.md exactly
+// (`severity: 'info' | 'warning' | 'error'`; `outcome: 'success' | 'failure'`).
+// The pre-existing SP-001..SP-006 events keep their own enum variants — Zod
+// discriminated unions allow each variant to declare independent fields.
+//
+// Spec-drift note: SP-007 data-model.md spells severity `'warning'` and
+// outcome `'failure'` (vs SP-001..SP-006 which spell them `'warn'` and
+// `'failed'`). SP-007 adopts the data-model spellings verbatim; downstream
+// emitters use the SP-007 enums.
+
+const Sp007Severity = z.enum(['info', 'warning', 'error']);
+const Sp007Outcome = z.enum(['success', 'failure']);
+
+const Sp007InstallStep = z.enum([
+  'preflight',
+  'idempotency_check',
+  'xdg_bringup',
+  'sqlite_singlefile',
+  'config_toml',
+  'taxonomy_seed',
+  'mcp_client_config',
+  'firewall_provision',
+  'auto_start_unit',
+  'install_receipt',
+  'next_step_output',
+]);
+
+const Sp007UninstallStep = z.enum([
+  'preflight',
+  'mcp_client_config_reverse',
+  'firewall_reverse',
+  'auto_start_unit_reverse',
+  'xdg_subtree_purge',
+  'receipt_finalize',
+]);
+
+const Sp007PreflightUnmet = z.enum([
+  'node_version',
+  'ollama_reachability',
+  'ollama_models',
+  'xdg_writable',
+  'partial_install',
+]);
+
+const Sp007UninstallPreflightUnmet = z.enum([
+  'receipt_missing',
+  'receipt_malformed',
+  'platform_mismatch',
+]);
+
+const Sp007SmokeFailureStep = z.enum([
+  'daemon_spawn',
+  'seed_traversal_timeout',
+  'mcp_spawn',
+  'corpus_find_zero_hits',
+  'teardown',
+]);
+
+const Sp007InstalledVia = z.enum(['npx', 'global', 'local']);
+const Sp007Os = z.enum(['macos', 'linux']);
+const Sp007Axis = z.enum(['domain', 'type', 'tag', 'source_type']);
+
+const Sp007BoundedShortString = z.string().max(256);
+
+// ---- install.* (6 classes) ----
+
+export const InstallPreflightFailedEvent = z.object({
+  event: z.literal('install.preflight_failed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  unmet_requirement: Sp007PreflightUnmet,
+  details: z
+    .object({
+      node_version: z.string().max(64).optional(),
+      missing_models: z.array(Sp007BoundedShortString).max(8).optional(),
+      partial_install_paths: z.array(z.string().max(4096)).max(32).optional(),
+    })
+    .strict()
+    .optional(),
+});
+export type InstallPreflightFailedEventType = z.infer<
+  typeof InstallPreflightFailedEvent
+>;
+
+export const InstallStepFailedEvent = z.object({
+  event: z.literal('install.step_failed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  step: Sp007InstallStep,
+  duration_ms: z.number().int().nonnegative(),
+  error_code: Sp007BoundedShortString,
+});
+export type InstallStepFailedEventType = z.infer<typeof InstallStepFailedEvent>;
+
+export const InstallCompletedEvent = z.object({
+  event: z.literal('install.completed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  duration_ms: z.number().int().nonnegative(),
+  installed_via: Sp007InstalledVia,
+  os: Sp007Os,
+  steps_skipped: z.array(Sp007BoundedShortString).max(16),
+});
+export type InstallCompletedEventType = z.infer<typeof InstallCompletedEvent>;
+
+export const InstallSmokeStartedEvent = z.object({
+  event: z.literal('install.smoke_started'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  seed_doc_path: z.string().max(4096),
+});
+export type InstallSmokeStartedEventType = z.infer<
+  typeof InstallSmokeStartedEvent
+>;
+
+export const InstallSmokeCompletedEvent = z.object({
+  event: z.literal('install.smoke_completed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  duration_ms: z.number().int().nonnegative(),
+  hits_returned: z.number().int().nonnegative(),
+});
+export type InstallSmokeCompletedEventType = z.infer<
+  typeof InstallSmokeCompletedEvent
+>;
+
+export const InstallSmokeFailedEvent = z.object({
+  event: z.literal('install.smoke_failed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  duration_ms: z.number().int().nonnegative(),
+  failure_step: Sp007SmokeFailureStep,
+  error_code: Sp007BoundedShortString,
+});
+export type InstallSmokeFailedEventType = z.infer<
+  typeof InstallSmokeFailedEvent
+>;
+
+// ---- uninstall.* (3 classes) ----
+
+export const UninstallPreflightFailedEvent = z.object({
+  event: z.literal('uninstall.preflight_failed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  unmet_requirement: Sp007UninstallPreflightUnmet,
+  details: z
+    .object({
+      receipt_path: z.string().max(4096).optional(),
+      install_os: z.string().max(64).optional(),
+      current_os: z.string().max(64).optional(),
+    })
+    .strict()
+    .optional(),
+});
+export type UninstallPreflightFailedEventType = z.infer<
+  typeof UninstallPreflightFailedEvent
+>;
+
+export const UninstallStepFailedEvent = z.object({
+  event: z.literal('uninstall.step_failed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  step: Sp007UninstallStep,
+  duration_ms: z.number().int().nonnegative(),
+  error_code: Sp007BoundedShortString,
+});
+export type UninstallStepFailedEventType = z.infer<
+  typeof UninstallStepFailedEvent
+>;
+
+export const UninstallCompletedEvent = z.object({
+  event: z.literal('uninstall.completed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  duration_ms: z.number().int().nonnegative(),
+  purged: z.boolean(),
+});
+export type UninstallCompletedEventType = z.infer<
+  typeof UninstallCompletedEvent
+>;
+
+// ---- taxonomy.* (3 classes) ----
+
+export const TaxonomyPromoteCompletedEvent = z.object({
+  event: z.literal('taxonomy.promote_completed'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  axis: Sp007Axis,
+  term: Sp007BoundedShortString,
+  was_already_established: z.boolean(),
+});
+export type TaxonomyPromoteCompletedEventType = z.infer<
+  typeof TaxonomyPromoteCompletedEvent
+>;
+
+export const TaxonomyPromoteLockContentionEvent = z.object({
+  event: z.literal('taxonomy.promote_lock_contention'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  lock_holder_hint: Sp007BoundedShortString.optional(),
+});
+export type TaxonomyPromoteLockContentionEventType = z.infer<
+  typeof TaxonomyPromoteLockContentionEvent
+>;
+
+export const TaxonomyPromoteMissingTermEvent = z.object({
+  event: z.literal('taxonomy.promote_missing_term'),
+  timestamp: ISO8601,
+  severity: Sp007Severity,
+  outcome: Sp007Outcome,
+  axis: Sp007Axis,
+  term: Sp007BoundedShortString,
+});
+export type TaxonomyPromoteMissingTermEventType = z.infer<
+  typeof TaxonomyPromoteMissingTermEvent
+>;
+
+// Re-export the SP-007 step + severity enums so downstream packages bind to
+// the same closed set.
+export const Sp007InstallStepEnum = Sp007InstallStep;
+export type Sp007InstallStepType = z.infer<typeof Sp007InstallStep>;
+export const Sp007UninstallStepEnum = Sp007UninstallStep;
+export type Sp007UninstallStepType = z.infer<typeof Sp007UninstallStep>;
+export const Sp007PreflightUnmetEnum = Sp007PreflightUnmet;
+export type Sp007PreflightUnmetType = z.infer<typeof Sp007PreflightUnmet>;
+export const Sp007UninstallPreflightUnmetEnum = Sp007UninstallPreflightUnmet;
+export type Sp007UninstallPreflightUnmetType = z.infer<
+  typeof Sp007UninstallPreflightUnmet
+>;
+export const Sp007SmokeFailureStepEnum = Sp007SmokeFailureStep;
+export type Sp007SmokeFailureStepType = z.infer<typeof Sp007SmokeFailureStep>;
+
 // --- Discriminated union (renamed in SP-002 — additive) ---
 
 /**
@@ -1127,6 +1380,19 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   SearchTierFailedEvent,
   SearchTierBudgetExceededEvent,
   DaemonStartedEvent,
+  // SP-007 additions (12 install / uninstall / taxonomy-promote event classes):
+  InstallPreflightFailedEvent,
+  InstallStepFailedEvent,
+  InstallCompletedEvent,
+  InstallSmokeStartedEvent,
+  InstallSmokeCompletedEvent,
+  InstallSmokeFailedEvent,
+  UninstallPreflightFailedEvent,
+  UninstallStepFailedEvent,
+  UninstallCompletedEvent,
+  TaxonomyPromoteCompletedEvent,
+  TaxonomyPromoteLockContentionEvent,
+  TaxonomyPromoteMissingTermEvent,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 

@@ -20,6 +20,10 @@ import {
 } from './daemon-commands.js';
 import { runReenrichCli } from './reenrich-command.js';
 import { runReindexCli } from './reindex-command.js';
+import { runInstallCommand } from './install-command.js';
+import { runUninstallCommand } from './uninstall-command.js';
+import { runTaxonomyPromoteCommand } from './taxonomy-promote-command.js';
+import { runFailuresCommand } from './failures-command.js';
 
 interface ParsedArgs {
   subcommand: string | undefined;
@@ -47,6 +51,11 @@ function printUsage(): void {
       '  drain               One-shot drain (process inbox + pending once)',
       '  reenrich [--dry-run] Drain SP-003 sentinel rows via classify-stage',
       '  reindex [--dry-run]  Backfill SP-005 FTS5 + vec + edges for classified docs',
+      '  init                 SP-007 install (lands in Phase 3 — Engineer #2)',
+      '  uninstall            SP-007 uninstall (lands in Phase 4 — Engineer #3)',
+      '  taxonomy promote     SP-007 taxonomy promotion (lands in Phase 5 — Engineer #3)',
+      '  failures list        List failure-lane sidecars (read-only)',
+      '  failures show <id>   Show full sidecar JSON for a doc-id',
       '  --help              Print this message',
       '',
     ].join('\n'),
@@ -107,6 +116,33 @@ async function main(argv: readonly string[]): Promise<number> {
       return runReenrichCli(rest);
     case 'reindex':
       return runReindexCli(rest);
+    case 'init': {
+      // SP-007 T046 — `corpus init` 11-step pipeline + optional --smoke.
+      const result = await runInstallCommand({ argv: rest });
+      return result.exit;
+    }
+    case 'uninstall': {
+      // SP-007 T059 — `corpus uninstall` receipt-driven reverse pipeline.
+      const result = await runUninstallCommand({ argv: rest });
+      return result.exit;
+    }
+    case 'taxonomy': {
+      // SP-007 T068 — `corpus taxonomy promote` (drain-lock serialized).
+      const subVerb = rest[0];
+      if (subVerb !== 'promote') {
+        process.stderr.write(
+          `corpus taxonomy: unknown sub-action "${subVerb ?? ''}" (only "promote" is in scope for SP-007)\n`,
+        );
+        return 2;
+      }
+      const result = await runTaxonomyPromoteCommand({ argv: rest.slice(1) });
+      return result.exit;
+    }
+    case 'failures': {
+      // SP-007 T073 — `corpus failures list|show` (read-only sidecar CLI).
+      const result = await runFailuresCommand({ argv: rest });
+      return result.exit;
+    }
     case undefined:
     case '--help':
     case '-h':

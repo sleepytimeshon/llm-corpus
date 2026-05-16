@@ -6,16 +6,19 @@ The system runs entirely on the user's machine. No document body, frontmatter, e
 
 ## Status
 
-**SP-001 through SP-006 all merged on `main` as of 2026-05-14. Substrate is feature-complete.** See [`docs/SESSION_STATE.md`](docs/SESSION_STATE.md) for live state and [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for operator instructions.
+**SP-001 through SP-007 all merged on `main` as of 2026-05-16. Substrate is INSTALL-COMPLETE end-to-end.** A clean Linux or macOS workstation with Node ≥ 18 + Ollama can run `npx @llm-corpus/cli init` and have a working substrate in ≤ 90 seconds. See [`docs/SESSION_STATE.md`](docs/SESSION_STATE.md) for live state and [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for operator instructions.
 
 - **SP-001 (`001-local-only-mcp-foundation`)** — egress hook + MCP stdio server foundation + `corpus.find` tool stub.
 - **SP-002 (`002-mcp-resources`)** — four read-only MCP resources (`corpus://manifest`, `corpus://taxonomy`, `corpus://recent`, `corpus://docs/{id}`) + baseline schema (`documents`, `taxonomy_terms`).
 - **SP-003 (`003-ingest-pipeline`)** — inbox watcher → validation → hash → normalize → persist; failure-lane sidecars; drain-lock serialization.
-- **SP-004 (`004-classifier`)** — Ollama grammar-constrained metadata classification (qwen3.5:9b) + dynamic vocabulary with proposed-term routing.
+- **SP-004 (`004-classifier`)** — Ollama grammar-constrained metadata classification + dynamic vocabulary with proposed-term routing.
 - **SP-005 (`005-retrieval`)** — four-signal hybrid retrieval (BM25 + dense via nomic-embed-text + graph + confidence) + RRF fusion + atomic index transaction + `corpus reindex` CLI.
 - **SP-006 (`006-hardening`)** — kill-9 cross-stage recovery (daemon survives SIGKILL mid-pipeline); read-only `corpus://failures` MCP resource (5th resource); Tier 1/2/3 fallthrough cascade (BM25-only → CATALOG.md grep → fs-grep) with per-tier AbortController budget; CATALOG.md flat-file mirror.
+- **SP-007 (`007-install-first-run`)** — `npx @llm-corpus/cli init` (11-step install pipeline within a 90-second AbortController budget) + `corpus uninstall [--purge]` (receipt-driven reverse) + `corpus taxonomy promote` (proposed → established) + `corpus failures list|show` (human-operator triage CLI; AI agents continue to use `corpus://failures`) + curated ≤ 50-term taxonomy seed + UID-scoped OS firewall provisioning per ADR-013 + auto-start unit (systemd / launchd) + C-046 end-to-end smoke harness.
 
-187 test files, 878 passing tests. CI green on Node 20 + Node 22. Constitution Check 16/16.
+242 test files, 1096 passing tests (plus the OLLAMA_RUNNING-gated C-046 smoke that runs on dev machines only). CI green on Node 20 + Node 22. Constitution Check 16/16.
+
+Two explicit deferrals from SP-007 (FR-INSTALL-026 + FR-INSTALL-027 → C-043 + C-044) are routed to a post-SP-007 polish PR. See [`specs/007-install-first-run/RETROSPECTIVE.md`](specs/007-install-first-run/RETROSPECTIVE.md).
 
 ## Requirements
 
