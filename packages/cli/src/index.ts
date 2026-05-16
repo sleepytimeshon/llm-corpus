@@ -10,6 +10,8 @@
 // into `process.exit` codes. Library packages MUST NOT call process.exit.
 
 import { startMcpServer } from '@llm-corpus/transport';
+import { openIndexReadOnly } from '@llm-corpus/storage';
+import { EmbeddingAdapter } from '@llm-corpus/inference';
 import { runPilotCommand } from './pilot/command.js';
 import {
   runDaemonStart,
@@ -55,7 +57,19 @@ async function runMcp(): Promise<number> {
   // startMcpServer() connects to stdio and returns once connected. We then
   // wait on a never-resolving promise so the process stays alive until the
   // transport closes (the MCP SDK closes the process when stdin EOFs).
-  const built = await startMcpServer();
+  //
+  // Wire the corpus.find ranking deps so the MCP server uses the real
+  // SP-005 hybrid retrieval handler (createCorpusFindHandler) rather than
+  // the SP-001 empty-hits placeholder. The CLI-side wire-up is what the
+  // SP-006 Engineer #5 "transport cutover" was supposed to land but
+  // didn't — only the in-package factory was updated.
+  const db = openIndexReadOnly();
+  const embeddingAdapter = new EmbeddingAdapter({
+    model: 'nomic-embed-text',
+    endpoint: 'http://localhost:11434/api/embeddings',
+    expectedDim: 768,
+  });
+  const built = await startMcpServer({ corpusFindDeps: { db, embeddingAdapter } });
   // Keep the process alive until the underlying server closes.
   await new Promise<void>((resolve) => {
     const underlying = built.server.server;

@@ -386,9 +386,12 @@ export function buildMcpServer(opts: BuildMcpServerOptions = {}): BuiltMcpServer
  * accidental network call from a resource handler is therefore hard-blocked
  * by the hook.
  */
-export async function startMcpServer(): Promise<BuiltMcpServer> {
-  // Bootstrap: not-ready yet.
-  const built = buildMcpServer({ ready: false });
+export async function startMcpServer(
+  opts: { corpusFindDeps?: CorpusFindHandlerDeps } = {},
+): Promise<BuiltMcpServer> {
+  // Bootstrap: not-ready yet. Pass corpus.find deps through so the real
+  // ranking handler is used instead of the SP-001 empty-hits placeholder.
+  const built = buildMcpServer({ ready: false, corpusFindDeps: opts.corpusFindDeps });
 
   // SP-002 — register the four read-only resources. The wiring helpers are
   // imported lazily to keep the bootstrap-ordering invariant: index.ts

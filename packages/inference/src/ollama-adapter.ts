@@ -119,6 +119,12 @@ export class OllamaAdapter {
       options: {
         temperature: 0.1,
       },
+      // Hold the classifier model in memory for 30 minutes between calls.
+      // Without this the model unloads after Ollama's default 5min idle and
+      // the next cold call pays the model-load cost (5-30s for 9B+ params)
+      // on top of constrained-decoding time, easily exceeding the
+      // perDocClassifyTimeoutMs budget. Bug surfaced 2026-05-15.
+      keep_alive: '30m',
     });
 
     let response;

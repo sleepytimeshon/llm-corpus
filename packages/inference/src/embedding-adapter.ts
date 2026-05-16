@@ -135,7 +135,11 @@ export class EmbeddingAdapter {
     try {
       response = await fetch(this.endpoint, {
         method: 'POST',
-        body: JSON.stringify({ model: this.model, prompt: text }),
+        // keep_alive: '30m' tells Ollama to hold the embedding model in
+        // memory between calls. Without it, the model unloads after the
+        // default 5 minutes of idleness and the next cold call exceeds
+        // embeddingHttpTimeoutMs while it reloads. Bug surfaced 2026-05-15.
+        body: JSON.stringify({ model: this.model, prompt: text, keep_alive: '30m' }),
         headers: { 'Content-Type': 'application/json' },
         signal,
       });
