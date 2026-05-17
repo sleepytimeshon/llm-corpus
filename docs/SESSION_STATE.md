@@ -1,6 +1,6 @@
 # llm-corpus Session State
 
-**Last updated:** 2026-05-16 — SP-007 merged; **llm-corpus substrate is INSTALL-COMPLETE end-to-end**
+**Last updated:** 2026-05-17 — SP-008 Track A merged; **substrate is v1.0.0 release-ready conditional on Track B verdict**
 **Authoritative:** this file. Memory pointers in ~/.claude reference here.
 
 ## Current status
@@ -13,16 +13,49 @@
 | SP-004 | Semantic classification — Ollama grammar-constrained metadata + dynamic vocabulary + proposed-term routing | ✅ Merged 2026-05-13 (PR #13, commit 33f233c) |
 | SP-005 | Hybrid retrieval — BM25 + dense + graph + confidence + RRF fusion | ✅ Merged 2026-05-13 (PR #14, commit 7592eb9) |
 | SP-006 | Kill-9 recovery + `corpus://failures` MCP resource + Tier 1/2/3 fallthrough | ✅ Merged 2026-05-14 (PR #15, squash commit 5237916) |
-| SP-007 | `corpus init` 11-step pipeline + 90-second first-run UX + `corpus uninstall` + `corpus taxonomy promote` + `corpus failures` CLI + C-046 smoke harness | ✅ **Merged 2026-05-16** |
+| SP-007 | `corpus init` + 90-second first-run + `corpus uninstall` + `corpus taxonomy promote` + `corpus failures` + C-046 smoke harness | ✅ Merged 2026-05-16 (PR #16, squash commit 972714c) |
+| SP-008 | User-acceptance + Maya engagement-proxy gate (Track A): 4 `engagement.*` event classes + `corpus accept <request-id>` + `corpus engagement-proxy report` + UR-001/002/003 + adversary + C-046 E2E | ✅ **Track A merged 2026-05-17**; Track B verdict PENDING 7-day operator dogfood |
 
-**Branch:** `main` clean. SP-001 through SP-007 all on `main`. **The substrate is FEATURE-COMPLETE and INSTALL-COMPLETE**: a clean Linux or macOS workstation with Node ≥ 18 + Ollama can run `npx @llm-corpus/cli init` and have a working substrate end-to-end in under 90 seconds. **Next up: SP-008 (user-acceptance + Maya engagement-proxy gate).**
+**Branch:** `main` clean. SP-001 through SP-008 Track A all on `main`. **The substrate is FEATURE-COMPLETE for v1.0.0**: all code-track work is shipped. v1.0.0 release ceremony (git tag + npm publish) is conditional on the SP-008 Track B operator-dogfood verdict landing PASS per C-028. Per Constitution XVI: PR-merge ships Track A; Track B is the operator's 7-day dogfood window and is recorded in `specs/008-user-acceptance/RETROSPECTIVE.md`'s Track B Verdict block.
 
-## Two explicit deferrals from SP-007 (FR-INSTALL-026 + FR-INSTALL-027)
+## SP-008 Track A — what shipped (2026-05-17)
+
+- **4 new telemetry event classes** in `packages/contracts/src/engagement.ts`:
+  - `engagement.corpus_find_invoked` — fires on every `corpus.find`; carries `request_id`, `query` (or truncated-with-hash for ≥ 1024 chars), `result_count`, `tier_used`, `duration_ms`. (FR-ENGAGEMENT-001.)
+  - `engagement.acceptance_event` — fires when operator runs `corpus accept`; keyed by matching `request_id`; optional `acceptance_note ≤ 512 chars`. (FR-ENGAGEMENT-002, Decision B = telemetry-only persistence.)
+  - `engagement.report_generated` — fires when operator runs `corpus engagement-proxy report`; audit-trail.
+  - `engagement.report_telemetry_parse_failed` — fires on malformed telemetry rows during scan; report continues, `parse_errors_count` increments.
+  - Plus additive `request_id?: string` on `SearchQueryEvent` (SP-005) per Decision A — Zod-optional, backward-compatible.
+- **`corpus accept <request-id> [--note "<text>"]`** at `packages/cli/src/accept-command.ts` per ADR-016. Idempotent; non-zero exit on unknown request_id or zero-result acceptance.
+- **`corpus engagement-proxy report [--since=<ISO>] [--until=<ISO>] [--format=text|json]`** at `packages/cli/src/engagement-proxy-command.ts` per ADR-017. Telemetry-only aggregation; ZERO new SQL tables; ZERO new Paths.* getters; reads + writes audit-trail to existing `Paths.telemetry()`.
+- **Constitution XVI Track A/B banner** in text-format report — names "Maya Week-1 engagement-proxy per C-028" and labels the verdict as Track B measurement.
+- **Adversary tests**: `packages/cli/test/empty-corpus-adversary.test.ts` (T047) + `packages/cli/test/session-start-idempotency-adversary.test.ts` (T048).
+- **C-046 E2E smoke**: `packages/cli/test/engagement-proxy-e2e.test.ts` (T045) — spawns production binary, asserts JSON verdict against synthetic 5q+1a fixture.
+- **264 test files, 1240 passing tests, 11 skipped (Ollama-gated), 0 failing.** Constitution Check 16/16. Build + lint + test all green.
+
+## Carry-forward — explicit deferrals still open per FR-ENGAGEMENT-024 + SC-008-036
 
 Both are tracked here, NOT in informal backlog:
 
-- **C-043** (SP-006 carryover): `signals_used: []` reporting bug in `packages/index/src/tier-orchestrator.ts` — the tier orchestrator wraps the SP-005 hybrid retriever but doesn't propagate `signals_used` from inner SearchOutput to outer envelope when tier-fallthrough occurs. Cosmetic but violates FR-RETRIEVAL-002. Routed to post-SP-007 polish PR per FR-INSTALL-026.
-- **C-044** (SP-006 carryover): `regenerateCatalogFromDb` in `packages/storage/src/catalog-md-generator.ts` references a non-existent `summary` column on `documents`. Non-fatal — reindex exits 0 even when CATALOG.md regen errors. Routed to post-SP-007 polish PR per FR-INSTALL-027.
+- **C-043** (SP-006 carryover): `signals_used: []` reporting bug in `packages/index/src/tier-orchestrator.ts` — the tier orchestrator wraps the SP-005 hybrid retriever but doesn't propagate `signals_used` from inner SearchOutput to outer envelope when tier-fallthrough occurs. Cosmetic but violates FR-RETRIEVAL-002. **Still deferred** per FR-ENGAGEMENT-024 — engagement-proxy report computes metrics from `result_count` + `tier_used`, NOT `signals_used`, so the deferral is not load-bearing for the SP-008 verdict.
+- **C-044** (SP-006 carryover): `regenerateCatalogFromDb` in `packages/storage/src/catalog-md-generator.ts` references a non-existent `summary` column on `documents`. Non-fatal — reindex exits 0 even when CATALOG.md regen errors. **Still deferred** per FR-ENGAGEMENT-024 — fires only on `corpus reindex`, NOT on the SP-008 dogfood path.
+
+Both deferrals route to a post-v1 polish PR after the Track B verdict closes.
+
+## SP-008 Track B — operator-driven verdict (PENDING)
+
+The PR-merge for SP-008 Track A does NOT close SP-008. The verdict captured in `specs/008-user-acceptance/RETROSPECTIVE.md`'s Track B Verdict block does.
+
+**Operator workflow** (see `specs/008-user-acceptance/quickstart.md`):
+
+1. Record `DOGFOOD_START` ISO instant at window open.
+2. Use the installed substrate naturally for 7 days (drop docs, ask Claude Code questions).
+3. Run `corpus accept <request-id> --note "<rationale>"` after useful results.
+4. At end-of-window: `corpus engagement-proxy report --since="$DOGFOOD_START" --format=text` + `--format=json`.
+5. Paste both outputs into the Track B Verdict block of the retrospective.
+6. Open follow-up PR: "SP-008 Track B verdict: PASS — v1.0.0 substrate release-ready" (or FAIL / KILL with C-028 rollback recommendation).
+
+**v1.0.0 release ceremony** (git tag + npm publish) follows a PASS verdict. FAIL (non-KILL) extends the window; FAIL (KILL) triggers a Stage 4 recycle per C-028.
 
 ## SP-007 — closed 2026-05-16 with formal retrospective
 

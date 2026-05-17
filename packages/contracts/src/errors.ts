@@ -1399,3 +1399,165 @@ export class TaxonomyPromoteArgsError extends Error {
     this.data = data;
   }
 }
+
+// ============================================================================
+// SP-008 typed errors — engagement-proxy + corpus accept
+//
+// References:
+//   - specs/008-user-acceptance/data-model.md "Schema migration delta — errors.ts"
+//   - specs/008-user-acceptance/spec.md FR-ENGAGEMENT-002, FR-ENGAGEMENT-017
+//   - Constitution Principle XI (library code never `process.exit`s; CLI
+//     entry points are the ONLY layer permitted to translate these errors
+//     into exit codes).
+// ============================================================================
+
+/**
+ * Thrown by `packages/cli/src/engagement/telemetry-log-scanner.ts` when a
+ * telemetry-log line fails JSON parse or Zod validation against the
+ * `TelemetryEvent` discriminated union.
+ *
+ * The scanner skips the line, increments `parse_errors_count` in the
+ * in-flight report, AND emits an `engagement.report_telemetry_parse_failed`
+ * event before re-raising this error to the caller IFF the caller opts into
+ * strict mode. In permissive mode (the default for the report flow) the
+ * scanner swallows the line + emits the event + continues; the caller never
+ * sees this error.
+ */
+export class EngagementProxyTelemetryParseError extends Error {
+  readonly code = 'ENGAGEMENT_PROXY_TELEMETRY_PARSE' as const;
+  override readonly name = 'EngagementProxyTelemetryParseError';
+  readonly data: {
+    line_number?: number;
+    error_message: string;
+    telemetry_log_path: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    line_number?: number;
+    error_message: string;
+    telemetry_log_path: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `Engagement-proxy telemetry parse failed at ${data.telemetry_log_path}` +
+        `${data.line_number !== undefined ? `:${data.line_number}` : ''}: ${data.error_message}`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown by
+ * `packages/cli/src/engagement/engagement-proxy-report-args-parser.ts`
+ * when `--since` / `--until` are malformed ISO-8601 OR `since > until`.
+ *
+ * Catch site: `engagement-proxy-command.ts` translates to stderr + non-zero
+ * exit per FR-ENGAGEMENT-017.
+ */
+export class EngagementProxyWindowInvalidError extends Error {
+  readonly code = 'ENGAGEMENT_PROXY_WINDOW_INVALID' as const;
+  override readonly name = 'EngagementProxyWindowInvalidError';
+  readonly data: {
+    since: string;
+    until: string;
+    reason: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    since: string;
+    until: string;
+    reason: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `Engagement-proxy window invalid: since=${data.since} until=${data.until} (${data.reason})`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown by `packages/cli/src/engagement/acceptance-event-writer.ts` when
+ * the supplied `request_id` has NO matching `engagement.corpus_find_invoked`
+ * event in the telemetry log.
+ *
+ * Catch site: `accept-command.ts` translates to stderr + exit 1 per
+ * FR-ENGAGEMENT-002 + FR-ENGAGEMENT-017.
+ */
+export class AcceptUnknownRequestIdError extends Error {
+  readonly code = 'ACCEPT_UNKNOWN_REQUEST_ID' as const;
+  override readonly name = 'AcceptUnknownRequestIdError';
+  readonly data: {
+    request_id: string;
+    telemetry_log_path: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    request_id: string;
+    telemetry_log_path: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `unknown request_id: ${data.request_id} (no matching engagement.corpus_find_invoked in ${data.telemetry_log_path})`,
+    );
+    this.data = data;
+  }
+}
+
+/**
+ * Thrown by `packages/cli/src/engagement/acceptance-event-writer.ts` when the
+ * matching `engagement.corpus_find_invoked` event has `result_count === 0`.
+ *
+ * Zero-result queries are valid (emitted + counted as queries) but cannot be
+ * the target of `corpus accept` per FR-ENGAGEMENT-002.
+ *
+ * Catch site: `accept-command.ts` translates to stderr + exit 1.
+ */
+export class AcceptZeroResultQueryError extends Error {
+  readonly code = 'ACCEPT_ZERO_RESULT_QUERY' as const;
+  override readonly name = 'AcceptZeroResultQueryError';
+  readonly data: {
+    request_id: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: { request_id: string; [key: string]: unknown }) {
+    super(`cannot accept zero-result query: ${data.request_id}`);
+    this.data = data;
+  }
+}
+
+/**
+ * INFORMATIONAL (NOT a failure) — used internally by the acceptance-event
+ * writer to signal the idempotent no-op path per FR-ENGAGEMENT-002 +
+ * Constitution X (idempotency).
+ *
+ * Catch site: `accept-command.ts` translates to stdout
+ * "already accepted: <request-id> at <prior_timestamp>" + exit 0.
+ *
+ * ZERO duplicate `engagement.acceptance_event` is written to the telemetry
+ * log when this is thrown.
+ */
+export class AcceptDuplicateRequestIdError extends Error {
+  readonly code = 'ACCEPT_DUPLICATE_REQUEST_ID' as const;
+  override readonly name = 'AcceptDuplicateRequestIdError';
+  readonly data: {
+    request_id: string;
+    prior_acceptance_timestamp: string;
+    [key: string]: unknown;
+  };
+
+  constructor(data: {
+    request_id: string;
+    prior_acceptance_timestamp: string;
+    [key: string]: unknown;
+  }) {
+    super(
+      `already accepted: ${data.request_id} at ${data.prior_acceptance_timestamp}`,
+    );
+    this.data = data;
+  }
+}

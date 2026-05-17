@@ -82,6 +82,13 @@ export default [
   // taxonomy-promote-command.ts) AND the legacy daemon-commands.ts /
   // reenrich-command.ts / reindex-command.ts files OUT of scope (they
   // are CLI entry points per Constitution XI + FR-INSTALL-019).
+  // SP-008 T011 EXTENDS scope to packages/cli/src/engagement/**/*.ts
+  // (the engagement-proxy library directory: 8 helpers — args parsers +
+  // acceptance-event-writer + telemetry-log-scanner + report-aggregator +
+  // verdict-computer + JSON/text renderers) while leaving the two CLI
+  // command entry points (accept-command.ts + engagement-proxy-command.ts)
+  // OUT of scope (they are CLI entry points per Constitution XI +
+  // FR-ENGAGEMENT-017).
   {
     files: [
       'packages/contracts/**/*.ts',
@@ -92,6 +99,8 @@ export default [
       'packages/pipeline/**/*.ts',
       // SP-007: install-helpers library directory.
       'packages/cli/src/install-helpers/**/*.ts',
+      // SP-008: engagement-proxy library directory.
+      'packages/cli/src/engagement/**/*.ts',
     ],
     plugins: { 'llm-corpus': localRulesPlugin },
     rules: {

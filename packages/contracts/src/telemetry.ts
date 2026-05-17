@@ -9,6 +9,12 @@ import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { Paths } from './paths.js';
+import {
+  EngagementCorpusFindInvokedEventZodSchema,
+  EngagementAcceptanceEventZodSchema,
+  EngagementReportGeneratedEventZodSchema,
+  EngagementReportTelemetryParseFailedEventZodSchema,
+} from './engagement.js';
 
 const ISO8601 = z
   .string()
@@ -752,6 +758,12 @@ export const SearchQueryEvent = z.object({
   result_count: z.number().int().nonnegative(),
   signals_used: z.array(Sp005SignalName),
   duration_ms: z.number().int().nonnegative(),
+  // SP-008 (Decision A) — additive optional `request_id` so the engagement
+  // `engagement.corpus_find_invoked` event emitted at the find-handler
+  // boundary can share its `randomUUID()` request_id with the existing
+  // `search.query` event for forensic joins. Backward-compatible: SP-005-era
+  // emissions WITHOUT this field still validate.
+  request_id: z.string().uuid().optional(),
 });
 export type SearchQueryEventType = z.infer<typeof SearchQueryEvent>;
 
@@ -1393,6 +1405,14 @@ export const TelemetryEvent = z.discriminatedUnion('event', [
   TaxonomyPromoteCompletedEvent,
   TaxonomyPromoteLockContentionEvent,
   TaxonomyPromoteMissingTermEvent,
+  // SP-008 additions (4 engagement event classes per data-model.md
+  // Entities 1-4 / FR-ENGAGEMENT-004 / SC-008-003). Imported from
+  // ./engagement.js to keep the SP-008 contract surface decoupled from the
+  // SP-001..SP-007 surface above.
+  EngagementCorpusFindInvokedEventZodSchema,
+  EngagementAcceptanceEventZodSchema,
+  EngagementReportGeneratedEventZodSchema,
+  EngagementReportTelemetryParseFailedEventZodSchema,
 ]);
 export type TelemetryEventType = z.infer<typeof TelemetryEvent>;
 

@@ -30,3 +30,10 @@ export * from './failures-resource-schema.js';
 
 // SP-007 additions
 export * from './install-schemas.js';
+
+// SP-008 additions — engagement-proxy + corpus accept Zod surface.
+// Re-exports the 7 schemas from engagement.ts (Entities 1-7) so
+// `packages/cli/` imports from `@llm-corpus/contracts` resolve. The five new
+// SP-008 typed errors are already re-exported via the './errors.js' line
+// above (they live in errors.ts; this header just records the addition).
+export * from './engagement.js';

@@ -1,0 +1,26 @@
+Disaster Recovery Runbook — local-only knowledge substrate
+===========================================================
+
+Scope: this runbook documents the recovery procedures for the
+local-only knowledge substrate after data loss, daemon crash, or
+filesystem corruption.
+
+Step 1 — Stop the daemon. Run `corpus daemon stop`. Verify the PID
+file is removed.
+
+Step 2 — Inspect the failure-lane sidecars. Run `corpus failures
+list` to enumerate any documents that failed validation or
+classification. Each sidecar carries the failure category +
+remediation hint.
+
+Step 3 — Re-classify sentinel rows. Run `corpus reenrich --dry-run`
+first to preview the work, then `corpus reenrich` to drain any
+classify-stage sentinel rows produced before SP-004 shipped.
+
+Step 4 — Backfill the SP-005 indexes. Run `corpus reindex --dry-run`
+followed by `corpus reindex` to populate the FTS5 + vec + edges
+tables for classified documents.
+
+Step 5 — Restart the daemon. Run `corpus daemon start`. Verify a
+`daemon.started` telemetry event was emitted with the expected
+recovery-scan summary.

@@ -6,7 +6,7 @@ The system runs entirely on the user's machine. No document body, frontmatter, e
 
 ## Status
 
-**SP-001 through SP-007 all merged on `main` as of 2026-05-16. Substrate is INSTALL-COMPLETE end-to-end.** A clean Linux or macOS workstation with Node ≥ 18 + Ollama can run `npx @llm-corpus/cli init` and have a working substrate in ≤ 90 seconds. See [`docs/SESSION_STATE.md`](docs/SESSION_STATE.md) for live state and [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for operator instructions.
+**SP-001 through SP-008 (Track A) all merged on `main` as of 2026-05-17. Substrate is FEATURE-COMPLETE for v1.0.0; release is conditional on the SP-008 Track B operator-dogfood verdict.** A clean Linux or macOS workstation with Node ≥ 18 + Ollama can run `npx @llm-corpus/cli init` and have a working substrate in ≤ 90 seconds. See [`docs/SESSION_STATE.md`](docs/SESSION_STATE.md) for live state and [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for operator instructions.
 
 - **SP-001 (`001-local-only-mcp-foundation`)** — egress hook + MCP stdio server foundation + `corpus.find` tool stub.
 - **SP-002 (`002-mcp-resources`)** — four read-only MCP resources (`corpus://manifest`, `corpus://taxonomy`, `corpus://recent`, `corpus://docs/{id}`) + baseline schema (`documents`, `taxonomy_terms`).
@@ -15,10 +15,13 @@ The system runs entirely on the user's machine. No document body, frontmatter, e
 - **SP-005 (`005-retrieval`)** — four-signal hybrid retrieval (BM25 + dense via nomic-embed-text + graph + confidence) + RRF fusion + atomic index transaction + `corpus reindex` CLI.
 - **SP-006 (`006-hardening`)** — kill-9 cross-stage recovery (daemon survives SIGKILL mid-pipeline); read-only `corpus://failures` MCP resource (5th resource); Tier 1/2/3 fallthrough cascade (BM25-only → CATALOG.md grep → fs-grep) with per-tier AbortController budget; CATALOG.md flat-file mirror.
 - **SP-007 (`007-install-first-run`)** — `npx @llm-corpus/cli init` (11-step install pipeline within a 90-second AbortController budget) + `corpus uninstall [--purge]` (receipt-driven reverse) + `corpus taxonomy promote` (proposed → established) + `corpus failures list|show` (human-operator triage CLI; AI agents continue to use `corpus://failures`) + curated ≤ 50-term taxonomy seed + UID-scoped OS firewall provisioning per ADR-013 + auto-start unit (systemd / launchd) + C-046 end-to-end smoke harness.
+- **SP-008 (`008-user-acceptance`) — Track A merged** — 4 new `engagement.*` telemetry event classes (`corpus_find_invoked`, `acceptance_event`, `report_generated`, `report_telemetry_parse_failed`) + `corpus accept <request-id> [--note]` CLI (ADR-016) + `corpus engagement-proxy report [--since] [--until] [--format]` CLI (ADR-017) + UR-001 / UR-002 / UR-003 integration tests + empty-corpus adversary + session-start idempotency adversary + C-046 E2E smoke against the production binary. **ZERO new MCP surfaces; ZERO new SQL tables; ZERO new `Paths.*` getters**; everything rides the existing `Paths.telemetry()` NDJSON layer.
 
-242 test files, 1096 passing tests (plus the OLLAMA_RUNNING-gated C-046 smoke that runs on dev machines only). CI green on Node 20 + Node 22. Constitution Check 16/16.
+264 test files, 1240 passing tests (plus Ollama-gated UR tests that run on dev machines only). CI green on Node 20 + Node 22. Constitution Check 16/16.
 
-Two explicit deferrals from SP-007 (FR-INSTALL-026 + FR-INSTALL-027 → C-043 + C-044) are routed to a post-SP-007 polish PR. See [`specs/007-install-first-run/RETROSPECTIVE.md`](specs/007-install-first-run/RETROSPECTIVE.md).
+**SP-008 Track B (operator-driven) is PENDING**: per FR-ENGAGEMENT-022 + Constitution XVI, PR-merge ships Track A; the verdict comes from the operator's 7-day dogfood window. See [`specs/008-user-acceptance/quickstart.md`](specs/008-user-acceptance/quickstart.md) for the operator workflow and [`specs/008-user-acceptance/RETROSPECTIVE.md`](specs/008-user-acceptance/RETROSPECTIVE.md) for the Track B Verdict block (populated at window close).
+
+Two carry-forward deferrals from SP-007 (C-043 + C-044) remain open per FR-ENGAGEMENT-024 + SC-008-036 — routed to a post-v1 polish PR.
 
 ## Requirements
 
