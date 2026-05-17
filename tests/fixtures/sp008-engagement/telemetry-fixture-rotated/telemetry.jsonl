@@ -1,0 +1,3 @@
+{"event":"engagement.corpus_find_invoked","timestamp":"2026-05-10T16:00:00Z","request_id":"e53d5aab-5e61-4c8f-b950-fd7b095756ed","query":"active-log-query-0","query_hash":"3658d044600638d90df66b2087876802a2829175f3048e3fb345def53fefddcf","result_count":2,"tier_used":"hybrid","duration_ms":40}
+{"event":"engagement.corpus_find_invoked","timestamp":"2026-05-10T16:05:00Z","request_id":"6ef2c3e0-9ec2-45e4-a21b-b2effaeb33d5","query":"active-log-query-1","query_hash":"060c5945566785c6de624894223c6f7ccff7f906e683c999414bef7514fa92b2","result_count":1,"tier_used":"bm25-only","duration_ms":20}
+{"event":"engagement.acceptance_event","timestamp":"2026-05-10T16:10:00Z","request_id":"e53d5aab-5e61-4c8f-b950-fd7b095756ed"}

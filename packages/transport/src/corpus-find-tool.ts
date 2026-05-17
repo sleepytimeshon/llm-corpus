@@ -27,7 +27,9 @@ import {
   SearchInputZodSchema,
   SearchOutputZodSchema,
   type SearchOutput,
+  emitTelemetry,
 } from '@llm-corpus/contracts';
+import { randomUUID, createHash } from 'node:crypto';
 import type { CorpusFindInputType } from './schemas.js';
 
 import type { Database as DatabaseType } from 'better-sqlite3';
@@ -40,6 +42,108 @@ export type CorpusFindHandler = (
   input: CorpusFindInputType,
   signal: AbortSignal,
 ) => Promise<SearchOutput>;
+
+/**
+ * SP-008 T016 — Maximum query length for the engagement event's `query` field
+ * (Constitution IX ≤ 4 KB-per-line discipline; data-model.md Entity 1).
+ */
+const ENGAGEMENT_QUERY_MAX = 1024;
+
+/**
+ * SP-008 T016/T019 — additive instrumentation that wraps any CorpusFindHandler
+ * with the per-`corpus.find` engagement-event emission. Per Decision A:
+ *
+ *   (a) generates `request_id: randomUUID()` at handler entry
+ *   (b) runs the inner handler (which already emits the existing
+ *       SP-005 `search.query` event)
+ *   (c) emits a new `engagement.corpus_find_invoked` event via
+ *       `emitTelemetry()` AFTER the inner handler returns
+ *   (d) computes `query_hash` over the FULL untruncated query
+ *   (e) truncates `query` to 1024 chars + sets `query_truncated: true` when
+ *       length > 1024
+ *   (f) captures `result_count`, `tier_used`, `duration_ms` from the
+ *       SearchOutput + wall-clock timing
+ *   (g) optionally echoes `request_id` to stderr ONLY when CLI-mediated
+ *       (heuristic: `process.stderr.isTTY === true` AND
+ *       `process.env.MCP_TRANSPORT !== 'stdio'`)
+ *
+ * ZERO mutation of `SearchOutputZodSchema` shape — the request_id is
+ * surfaced via the engagement event, NOT via the MCP `tools/call` response.
+ *
+ * Per Constitution III + XIII: this is the deepest common handler-boundary
+ * point — the wrapper covers all three transport paths (real MCP-stdio,
+ * library-handler-direct, CLI-mediated) because every path eventually
+ * calls a CorpusFindHandler. The wrapper does NOT add new outbound
+ * endpoints (FR-ENGAGEMENT-015 preserved).
+ *
+ * Telemetry-or-Die (Constitution XIII): the engagement emit is best-effort
+ * — a transient `emitTelemetry()` failure is logged and swallowed; the
+ * SearchOutput still returns to the caller. This matches the SP-005
+ * `search.query` emit discipline (both are observability records, not
+ * load-bearing application state).
+ */
+export function wrapHandlerWithEngagement(
+  inner: CorpusFindHandler,
+): CorpusFindHandler {
+  return async (input, signal) => {
+    const request_id = randomUUID();
+    const startedAt = Date.now();
+    const output = await inner(input, signal);
+    const duration_ms = Date.now() - startedAt;
+
+    // Engagement event payload — query-truncation + hash per data-model.md
+    // Entity 1 invariants (query_hash over the FULL untruncated text,
+    // query_truncated only when > 1024 chars).
+    const queryRaw =
+      typeof (input as { query?: unknown })?.query === 'string'
+        ? (input as { query: string }).query
+        : '';
+    const truncated = queryRaw.length > ENGAGEMENT_QUERY_MAX;
+    const query = truncated ? queryRaw.slice(0, ENGAGEMENT_QUERY_MAX) : queryRaw;
+    const query_hash = createHash('sha256').update(queryRaw).digest('hex');
+
+    try {
+      await emitTelemetry({
+        event: 'engagement.corpus_find_invoked',
+        timestamp: new Date().toISOString(),
+        request_id,
+        query,
+        ...(truncated ? { query_truncated: true as const } : {}),
+        query_hash,
+        result_count: output.result_count,
+        tier_used: output.tier_used,
+        duration_ms,
+      });
+    } catch (err) {
+      // Telemetry-or-Die compromise: log to stderr (NOT process.exit) and
+      // surface the SearchOutput to the caller. Matches SP-005 behavior.
+      const msg = err instanceof Error ? err.message : String(err);
+      try {
+        process.stderr.write(
+          `corpus.find: engagement.corpus_find_invoked emit failed: ${msg}\n`,
+        );
+      } catch {
+        /* swallow */
+      }
+    }
+
+    // Optional CLI-side echo of request_id so the operator can copy it for
+    // `corpus accept <request_id>`. Suppressed for MCP-stdio mediated
+    // calls so the JSON-RPC stream stays clean.
+    if (
+      process.stderr.isTTY === true &&
+      process.env.MCP_TRANSPORT !== 'stdio'
+    ) {
+      try {
+        process.stderr.write(`corpus.find: request_id=${request_id}\n`);
+      } catch {
+        /* swallow */
+      }
+    }
+
+    return output;
+  };
+}
 
 export interface CorpusFindHandlerDeps {
   /** SQLite write-or-read connection with sqlite-vec loaded. */
@@ -67,9 +171,17 @@ export interface CorpusFindHandlerDeps {
  *      (already validated by SearchOutputZodSchema inside the orchestrator).
  */
 export function createCorpusFindHandler(
-  deps: CorpusFindHandlerDeps,
+  deps: CorpusFindHandlerDeps | { handlerOverride: CorpusFindHandler },
 ): CorpusFindHandler {
-  return async (rawInput, signal) => {
+  // SP-008 T016 — test affordance: when `handlerOverride` is supplied, wrap
+  // it with the engagement instrumentation directly without booting the
+  // tier-orchestrator. Used by unit tests that exercise the wrapper at the
+  // handler boundary without real Ollama/SQLite. Production callers pass
+  // `CorpusFindHandlerDeps` and the canonical Tier-0..3 path runs.
+  if ('handlerOverride' in deps) {
+    return wrapHandlerWithEngagement(deps.handlerOverride);
+  }
+  const production: CorpusFindHandler = async (rawInput, signal) => {
     const parsed = SearchInputZodSchema.safeParse(rawInput);
     if (!parsed.success) {
       const issues = parsed.error.issues.slice(0, 5).map((i) => i.message);
@@ -108,6 +220,10 @@ export function createCorpusFindHandler(
     });
     return runTieredSearch(parsed.data, tierDeps, signal);
   };
+  // SP-008 T016 — wrap the production handler with the engagement
+  // instrumentation so every successful corpus.find emits the engagement
+  // event per FR-ENGAGEMENT-001.
+  return wrapHandlerWithEngagement(production);
 }
 
 /**
@@ -120,6 +236,12 @@ export function createCorpusFindHandler(
  *
  * Real ranking lands when the mcp-server is built with `corpusFindDeps`
  * or `corpusFindHandlerOverride` — see createCorpusFindHandler().
+ *
+ * SP-008 T016 — this default handler is intentionally NOT wrapped with
+ * the engagement instrumentation: it is the empty-hits placeholder used
+ * by tests that verify tools/list surface shape; emitting engagement
+ * events from those tests would pollute test telemetry. The wrapper is
+ * applied to the production handler via `createCorpusFindHandler`.
  */
 export const corpusFindHandler: CorpusFindHandler = async (input, signal) => {
   signal.throwIfAborted();

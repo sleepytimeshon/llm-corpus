@@ -1,17 +1,45 @@
 <!-- SPECKIT START -->
-Active feature: **008-user-acceptance** (SP-008) — FINAL must-have sprint for v1. Closes user-level acceptance (UR-001, UR-002, UR-003) + validates Maya Week-1 engagement-proxy gate per C-028. Track A (code: `corpus accept` CLI + `corpus engagement-proxy report` CLI + 5 new telemetry events + adversary integration tests) is what SP-008 SHIPS; Track B (operator's 7-day dogfood window) is what SP-008 TESTS AGAINST per Constitution XVI honesty. Spec + plan + tasks complete (67 atomic tasks across 8 phases); ready for `/speckit-implement`.
-Plan: [specs/008-user-acceptance/plan.md](specs/008-user-acceptance/plan.md)
-Spec: [specs/008-user-acceptance/spec.md](specs/008-user-acceptance/spec.md)
-Research: [specs/008-user-acceptance/research.md](specs/008-user-acceptance/research.md)
-Data model: [specs/008-user-acceptance/data-model.md](specs/008-user-acceptance/data-model.md)
-Tasks: [specs/008-user-acceptance/tasks.md](specs/008-user-acceptance/tasks.md)
-Checklist: [specs/008-user-acceptance/checklists/requirements.md](specs/008-user-acceptance/checklists/requirements.md)
-ADRs: [acceptance-event-definition (ADR-016)](specs/008-user-acceptance/contracts/adr-acceptance-event-definition.md) · [engagement-proxy aggregation (ADR-017)](specs/008-user-acceptance/contracts/adr-engagement-proxy-aggregation.md)
-Prior art (merged): [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md) · [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+Active sprint: **none** — SP-008 Track A merged 2026-05-17. v1.0.0 release queue PENDING the SP-008 Track B operator-dogfood verdict per FR-ENGAGEMENT-022 + Constitution XVI. Once the operator's 7-day dogfood window closes and `corpus engagement-proxy report` returns PASS (≥ 5 queries + ≥ 1 acceptance event in 7d), the verdict lands in `specs/008-user-acceptance/RETROSPECTIVE.md`'s Track B Verdict block; v1.0.0 tagging + npm publish follow.
+Prior art (merged): [specs/008-user-acceptance/plan.md](specs/008-user-acceptance/plan.md) · [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md) · [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
+SP-008 quickstart (operator Track B workflow): [specs/008-user-acceptance/quickstart.md](specs/008-user-acceptance/quickstart.md)
+SP-008 retrospective: [specs/008-user-acceptance/RETROSPECTIVE.md](specs/008-user-acceptance/RETROSPECTIVE.md)
 SP-007 retrospective: [specs/007-install-first-run/RETROSPECTIVE.md](specs/007-install-first-run/RETROSPECTIVE.md)
 SP-006 retrospective: [specs/006-hardening/RETROSPECTIVE.md](specs/006-hardening/RETROSPECTIVE.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
 <!-- SPECKIT END -->
+
+## SP-008 surface (user-acceptance + Maya engagement-proxy gate — Track A complete)
+
+SP-008 Track A shipped:
+
+**4 new `engagement.*` telemetry event classes** in `packages/contracts/src/engagement.ts` — Zod-validated variants additive to the `TelemetryEvent` discriminated union:
+
+- `engagement.corpus_find_invoked` — fires on every `corpus.find` invocation (`request_id`, `query` or truncated-with-hash for ≥ 1024 chars, `result_count`, `tier_used`, `duration_ms`). FR-ENGAGEMENT-001.
+- `engagement.acceptance_event` — fires when operator runs `corpus accept <request-id>`; keyed by matching `request_id` from a prior find event; optional `acceptance_note ≤ 512 chars`. FR-ENGAGEMENT-002 / ADR-016 (Decision B = telemetry-only persistence, no new SQL).
+- `engagement.report_generated` — audit-trail for `corpus engagement-proxy report` invocations.
+- `engagement.report_telemetry_parse_failed` — fires on malformed rows during the report scan; report continues with `parse_errors_count` incremented.
+
+Plus an additive `request_id?: string` on `SearchQueryEvent` (SP-005) per Decision A — Zod-optional, fully backward-compatible.
+
+**2 new CLI subcommands** (operator-facing only; ZERO new MCP surfaces per Constitution III):
+
+- `corpus accept <request-id> [--note "<≤ 512 chars>"]` at `packages/cli/src/accept-command.ts`. Idempotent (Constitution X). Non-zero exit on unknown request_id or zero-result acceptance.
+- `corpus engagement-proxy report [--since=<ISO>] [--until=<ISO>] [--format=text|json]` at `packages/cli/src/engagement-proxy-command.ts`. Telemetry-scan + verdict-compute per ADR-017. Text format carries the Constitution XVI Track A/B banner ("Maya Week-1 engagement-proxy per C-028" + "Track B measurement"). JSON Zod-validates against `EngagementProxyReportZodSchema` with `schema_version: 1`.
+
+**Adversary tests + C-046 E2E smoke**:
+
+- `packages/cli/test/empty-corpus-adversary.test.ts` (T047) — `corpus.find` on zero docs returns `hits: []` for 5 query shapes; engagement event still emits with `result_count: 0`; NO `engagement.acceptance_event` fires.
+- `packages/cli/test/session-start-idempotency-adversary.test.ts` (T048) — daemon restart with identical inbox: documents row count unchanged + dedup_hit events + zero write events.
+- `packages/cli/test/engagement-proxy-e2e.test.ts` (T045) — spawns production binary, asserts JSON verdict against synthetic 5q+1a fixture per Decision C ("no library-level handler test is sufficient"). C-046 carry-forward from SP-006 retro.
+
+**Track A/B split (Constitution XVI honesty)**:
+
+- **Track A** is what this sprint SHIPS — code, instrumentation, CLI, tests, Gherkin scenarios in the execution journal.
+- **Track B** is what this sprint TESTS AGAINST — the operator's 7-day dogfood window. Pallas CANNOT close SC-008-035; only operator dogfood can. The PR-merge does NOT close SP-008; the verdict captured in `specs/008-user-acceptance/RETROSPECTIVE.md` does.
+
+ZERO new MCP surfaces (Constitution III). ZERO new SQL tables (Constitution XIV). ZERO new `Paths.*` getters (Constitution XIV — reuses existing `Paths.telemetry()`). ZERO new outbound endpoints (Constitution I).
+
+**SP-007 carry-forward still deferred** (per FR-ENGAGEMENT-024 + SC-008-036): C-043 (`signals_used: []` reporting bug) + C-044 (`regenerateCatalogFromDb summary column`) routed to a post-v1 polish PR.
 
 ## SP-002 surface (what this repo ships now)
 

@@ -15,8 +15,15 @@ import './egress-hook-bootstrap.js'; // T048 — must be FIRST import
 export { startMcpServer, buildMcpServer, SERVER_INITIALIZING_CODE } from './mcp-server.js';
 export { emitFindCheckpoint } from './mcp-checkpoint.js';
 export type { BuildMcpServerOptions, BuiltMcpServer } from './mcp-server.js';
-export { corpusFindHandler } from './corpus-find-tool.js';
-export type { CorpusFindHandler } from './corpus-find-tool.js';
+export {
+  corpusFindHandler,
+  createCorpusFindHandler,
+  wrapHandlerWithEngagement,
+} from './corpus-find-tool.js';
+export type {
+  CorpusFindHandler,
+  CorpusFindHandlerDeps,
+} from './corpus-find-tool.js';
 export {
   emitResourceRead,
   MCP_ERROR_CODES,

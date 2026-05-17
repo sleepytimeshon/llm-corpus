@@ -24,6 +24,8 @@ import { runInstallCommand } from './install-command.js';
 import { runUninstallCommand } from './uninstall-command.js';
 import { runTaxonomyPromoteCommand } from './taxonomy-promote-command.js';
 import { runFailuresCommand } from './failures-command.js';
+import { runAcceptCommand } from './accept-command.js';
+import { runEngagementProxyCommand } from './engagement-proxy-command.js';
 
 interface ParsedArgs {
   subcommand: string | undefined;
@@ -51,11 +53,13 @@ function printUsage(): void {
       '  drain               One-shot drain (process inbox + pending once)',
       '  reenrich [--dry-run] Drain SP-003 sentinel rows via classify-stage',
       '  reindex [--dry-run]  Backfill SP-005 FTS5 + vec + edges for classified docs',
-      '  init                 SP-007 install (lands in Phase 3 — Engineer #2)',
-      '  uninstall            SP-007 uninstall (lands in Phase 4 — Engineer #3)',
-      '  taxonomy promote     SP-007 taxonomy promotion (lands in Phase 5 — Engineer #3)',
+      '  init                 SP-007 install',
+      '  uninstall            SP-007 uninstall',
+      '  taxonomy promote     SP-007 taxonomy promotion',
       '  failures list        List failure-lane sidecars (read-only)',
       '  failures show <id>   Show full sidecar JSON for a doc-id',
+      '  accept <id> [--note] SP-008 record acceptance of a corpus.find request_id',
+      '  engagement-proxy report  SP-008 Maya week-1 engagement gate report',
       '  --help              Print this message',
       '',
     ].join('\n'),
@@ -141,6 +145,23 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'failures': {
       // SP-007 T073 — `corpus failures list|show` (read-only sidecar CLI).
       const result = await runFailuresCommand({ argv: rest });
+      return result.exit;
+    }
+    case 'accept': {
+      // SP-008 T027 — `corpus accept <request-id> [--note <text>]`.
+      const result = await runAcceptCommand({ argv: rest });
+      return result.exit;
+    }
+    case 'engagement-proxy': {
+      // SP-008 T043 — `corpus engagement-proxy report`.
+      const subVerb = rest[0];
+      if (subVerb !== 'report') {
+        process.stderr.write(
+          `corpus engagement-proxy: unknown sub-action "${subVerb ?? ''}" (only "report" is in scope for SP-008)\n`,
+        );
+        return 2;
+      }
+      const result = await runEngagementProxyCommand({ argv: rest.slice(1) });
       return result.exit;
     }
     case undefined:
