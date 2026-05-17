@@ -1,7 +1,13 @@
 <!-- SPECKIT START -->
-Active feature: **none** — SP-007 merged on `main` 2026-05-16. **Next: SP-008** (user-acceptance + Maya engagement-proxy gate). Begin with `/speckit-specify "008-user-acceptance"`.
-Last sprint: [specs/007-install-first-run/RETROSPECTIVE.md](specs/007-install-first-run/RETROSPECTIVE.md)
-Prior art (merged): [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md) · [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md)
+Active feature: **008-user-acceptance** (SP-008) — FINAL must-have sprint for v1. Closes user-level acceptance (UR-001, UR-002, UR-003) + validates Maya Week-1 engagement-proxy gate per C-028. Track A (code: `corpus accept` CLI + `corpus engagement-proxy report` CLI + 5 new telemetry events + adversary integration tests) is what SP-008 SHIPS; Track B (operator's 7-day dogfood window) is what SP-008 TESTS AGAINST per Constitution XVI honesty. Spec + plan + tasks complete (67 atomic tasks across 8 phases); ready for `/speckit-implement`.
+Plan: [specs/008-user-acceptance/plan.md](specs/008-user-acceptance/plan.md)
+Spec: [specs/008-user-acceptance/spec.md](specs/008-user-acceptance/spec.md)
+Research: [specs/008-user-acceptance/research.md](specs/008-user-acceptance/research.md)
+Data model: [specs/008-user-acceptance/data-model.md](specs/008-user-acceptance/data-model.md)
+Tasks: [specs/008-user-acceptance/tasks.md](specs/008-user-acceptance/tasks.md)
+Checklist: [specs/008-user-acceptance/checklists/requirements.md](specs/008-user-acceptance/checklists/requirements.md)
+ADRs: [acceptance-event-definition (ADR-016)](specs/008-user-acceptance/contracts/adr-acceptance-event-definition.md) · [engagement-proxy aggregation (ADR-017)](specs/008-user-acceptance/contracts/adr-engagement-proxy-aggregation.md)
+Prior art (merged): [specs/007-install-first-run/plan.md](specs/007-install-first-run/plan.md) · [specs/006-hardening/plan.md](specs/006-hardening/plan.md) · [specs/005-retrieval/plan.md](specs/005-retrieval/plan.md) · [specs/004-classifier/plan.md](specs/004-classifier/plan.md) · [specs/003-ingest-pipeline/plan.md](specs/003-ingest-pipeline/plan.md) · [specs/002-mcp-resources/plan.md](specs/002-mcp-resources/plan.md) · [specs/001-local-only-mcp-foundation/plan.md](specs/001-local-only-mcp-foundation/plan.md)
 SP-007 retrospective: [specs/007-install-first-run/RETROSPECTIVE.md](specs/007-install-first-run/RETROSPECTIVE.md)
 SP-006 retrospective: [specs/006-hardening/RETROSPECTIVE.md](specs/006-hardening/RETROSPECTIVE.md)
 Constitution (gates every plan): [.specify/memory/constitution.md](.specify/memory/constitution.md)
